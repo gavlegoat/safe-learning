@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<sspaceex xmlns="http://www-verimag.imag.fr/xml-namespaces/sspaceex" version="0.2" math="SpaceEx">
+  <component id="core_component">
+    <param name="x1" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x2" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x3" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x4" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x5" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x6" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x7" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x8" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x9" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x10" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x11" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x12" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x13" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x14" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x15" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="y1" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="t" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="u1" type="real" local="false" d1="1" d2="1" dynamics="const" />
+    <param name="stoptime" type="real" local="false" d1="1" d2="1" dynamics="const" />
+    <location id="1" name="Model" x="362.0" y="430.0" width="426.0" height="610.0">
+     <invariant>t &lt;= stoptime 
+ &amp;y1 == 0.064531*x2 - 0.0061322*x1 - 0.00069603*x3 - 0.062226*x4 - 0.0035048*x5 + 0.047228*x6 + 0.021423*x7 + 0.0093666*x8 + 0.01125*x9 + 0.011919*x10 + 0.038892*x11 - 0.0043369*x12 + 0.019912*x13 + 0.0035327*x14 - 0.021347*x15</invariant>
+     <flow> x1' == 0.0061322*u1 - 0.0075102*x1 + 5.2756*x2 - 0.00096238*x3 - 0.6634*x4 - 0.006689*x5 + 0.16081*x6 + 0.070705*x7 + 0.01843*x8 + 0.033143*x9 + 0.025063*x10 + 0.1069*x11 - 0.0095973*x12 + 0.054215*x13 + 0.0078958*x14 - 0.05736*x15
+ &amp;x2' == 0.064531*u1 - 5.2756*x1 - 0.85737*x2 + 0.090377*x3 + 0.92166*x4 + 0.13158*x5 - 0.97335*x6 - 0.44973*x7 - 0.33292*x8 - 0.25467*x9 - 0.38152*x10 - 0.92917*x11 + 0.12951*x12 - 0.47949*x13 - 0.10417*x14 + 0.51986*x15
+ &amp;x3' == 0.00069603*u1 - 0.00096238*x1 - 0.090377*x2 - 0.00012541*x3 - 13.542*x4 - 0.00092367*x5 + 0.026749*x6 + 0.011595*x7 + 0.0025622*x8 + 0.0051874*x9 + 0.0035389*x10 + 0.016317*x11 - 0.0013727*x12 + 0.0082485*x13 + 0.0011323*x14 - 0.0086882*x15
+ &amp;x4' == 0.6634*x1 - 0.062226*u1 + 0.92166*x2 + 13.542*x3 - 1.004*x4 - 0.17895*x5 + 1.117*x6 + 0.51795*x7 + 0.44311*x8 + 0.29783*x9 + 0.4893*x10 + 1.0996*x11 - 0.1625*x12 + 0.56846*x13 + 0.13022*x14 - 0.61793*x15
+ &amp;x5' == 0.0035048*u1 - 0.006689*x1 - 0.13158*x2 - 0.00092367*x3 + 0.17895*x4 - 0.008656*x5 + 23.761*x6 + 1.1717*x7 + 0.024823*x8 + 0.13715*x9 + 0.037225*x10 + 0.3119*x11 - 0.015556*x12 + 0.15229*x13 + 0.013037*x14 - 0.15325*x15
+ &amp;x6' == 0.047228*u1 - 0.16081*x1 - 0.97335*x2 - 0.026749*x3 + 1.117*x4 - 23.761*x5 - 1.5873*x6 - 0.75053*x7 - 4.9343*x8 - 0.4724*x9 - 1.9409*x10 - 1.8836*x11 + 0.4708*x12 - 0.98584*x13 - 0.36077*x14 + 1.0912*x15
+ &amp;x7' == 0.021423*u1 - 0.070705*x1 - 0.44973*x2 - 0.011595*x3 + 0.51795*x4 - 1.1717*x5 - 0.75053*x6 - 0.35552*x7 - 6.1681*x8 - 0.22575*x9 - 1.0964*x10 - 0.90761*x11 + 0.24584*x12 - 0.47568*x13 - 0.18672*x14 + 0.52758*x15
+ &amp;x8' == 0.01843*x1 - 0.0093666*u1 + 0.33292*x2 + 0.0025622*x3 - 0.44311*x4 + 0.024823*x5 + 4.9343*x6 + 6.1681*x7 - 0.071566*x8 - 0.55207*x9 - 0.10886*x10 - 1.0701*x11 + 0.046135*x12 - 0.51571*x13 - 0.038788*x14 + 0.5106*x15
+ &amp;x9' == 0.01125*u1 - 0.033143*x1 - 0.25467*x2 - 0.0051874*x3 + 0.29783*x4 - 0.13715*x5 - 0.4724*x6 - 0.22575*x7 + 0.55207*x8 - 0.14992*x9 - 14.126*x10 - 0.62987*x11 + 0.31572*x12 - 0.33265*x13 - 0.21843*x14 + 0.37322*x15
+ &amp;x10' == 0.025063*x1 - 0.011919*u1 + 0.38152*x2 + 0.0035389*x3 - 0.4893*x4 + 0.037225*x5 + 1.9409*x6 + 1.0964*x7 - 0.10886*x8 + 14.126*x9 - 0.17215*x10 - 3.3095*x11 + 0.075998*x12 - 1.4714*x13 - 0.064505*x14 + 1.3304*x15
+ &amp;x11' == 0.038892*u1 - 0.1069*x1 - 0.92917*x2 - 0.016317*x3 + 1.0996*x4 - 0.3119*x5 - 1.8836*x6 - 0.90761*x7 + 1.0701*x8 - 0.62987*x9 + 3.3095*x10 - 2.775*x11 + 33.887*x12 - 1.4783*x13 - 4.2421*x14 + 1.681*x15
+ &amp;x12' == 0.0043369*u1 - 0.0095973*x1 - 0.12951*x2 - 0.0013727*x3 + 0.1625*x4 - 0.015556*x5 - 0.4708*x6 - 0.24584*x7 + 0.046135*x8 - 0.31572*x9 + 0.075998*x10 - 33.887*x11 - 0.035149*x12 + 5.3142*x13 + 0.030178*x14 - 2.004*x15
+ &amp;x13' == 0.019912*u1 - 0.054215*x1 - 0.47949*x2 - 0.0082485*x3 + 0.56846*x4 - 0.15229*x5 - 0.98584*x6 - 0.47568*x7 + 0.51571*x8 - 0.33265*x9 + 1.4714*x10 - 1.4783*x11 - 5.3142*x12 - 0.78885*x13 - 6.3028*x14 + 0.8993*x15
+ &amp;x14' == 0.0078958*x1 - 0.0035327*u1 + 0.10417*x2 + 0.0011323*x3 - 0.13022*x4 + 0.013037*x5 + 0.36077*x6 + 0.18672*x7 - 0.038788*x8 + 0.21843*x9 - 0.064505*x10 + 4.2421*x11 + 0.030178*x12 + 6.3028*x13 - 0.025985*x14 + 4.0141*x15
+ &amp;x15' == 0.05736*x1 - 0.021347*u1 + 0.51986*x2 + 0.0086882*x3 - 0.61793*x4 + 0.15325*x5 + 1.0912*x6 + 0.52758*x7 - 0.5106*x8 + 0.37322*x9 - 1.3304*x10 + 1.681*x11 + 2.004*x12 + 0.8993*x13 - 4.0141*x14 - 1.0293*x15
+ &amp;t' == 1</flow>
+     </location>
+   </component>     <component id="sys">
+    <param name="x1" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x2" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x3" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x4" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x5" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x6" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x7" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x8" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x9" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x10" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x11" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x12" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x13" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x14" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x15" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="t" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="stoptime" type="real" local="false" d1="1" d2="1" dynamics="const" controlled="true" />
+    <param name="y1" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="u1" type="real" local="false" d1="1" d2="1" dynamics="const" controlled="true" />
+     <bind component="core_component" as="model">
+       <map key="x1">x1</map>
+       <map key="x2">x2</map>
+       <map key="x3">x3</map>
+       <map key="x4">x4</map>
+       <map key="x5">x5</map>
+       <map key="x6">x6</map>
+       <map key="x7">x7</map>
+       <map key="x8">x8</map>
+       <map key="x9">x9</map>
+       <map key="x10">x10</map>
+       <map key="x11">x11</map>
+       <map key="x12">x12</map>
+       <map key="x13">x13</map>
+       <map key="x14">x14</map>
+       <map key="x15">x15</map>
+       <map key="t">t</map>
+       <map key="stoptime">stoptime</map>
+       <map key="y1">y1</map>
+       <map key="u1">u1</map>
+    </bind>
+  </component>
+</sspaceex>

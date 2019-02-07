@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<sspaceex xmlns="http://www-verimag.imag.fr/xml-namespaces/sspaceex" version="0.2" math="SpaceEx">
+  <component id="core_component">
+    <param name="x1" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x2" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x3" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x4" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x5" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x6" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x7" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x8" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x9" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x10" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x11" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x12" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x13" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x14" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x15" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x16" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x17" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x18" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x19" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="x20" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="y1" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="t" type="real" local="false" d1="1" d2="1" dynamics="any" />
+    <param name="u1" type="real" local="false" d1="1" d2="1" dynamics="const" />
+    <param name="stoptime" type="real" local="false" d1="1" d2="1" dynamics="const" />
+    <location id="1" name="Model" x="362.0" y="430.0" width="426.0" height="610.0">
+     <invariant>t &lt;= stoptime 
+ &amp;y1 == 19.91*x7 - 5.1592*x2 - 0.18991*x3 - 1.5112*x4 - 0.23444*x5 - 0.75255*x6 - 24.735*x1 - 19.032*x8 - 11.711*x9 + 6.6509*x10 - 3.7244*x11 - 2.0618*x12 - 1.1304*x13 + 0.61341*x14 - 0.32951*x15 - 0.17529*x16 + 0.092386*x17 + 0.048263*x18 - 0.025003*x19 - 0.01285*x20</invariant>
+     <flow> x1' == 9.4271*x7 - 6.1117*x1 - 1.2755*x2 - 80.257*x3 - 0.37371*x4 - 69.879*x5 - 180.33*x6 - 24.735*u1 - 9.2291*x8 - 5.7485*x9 + 3.2795*x10 - 1.8392*x11 - 1.0187*x12 - 0.55858*x13 + 0.30314*x14 - 0.16284*x15 - 0.086627*x16 + 0.045656*x17 + 0.023851*x18 - 0.012356*x19 - 0.0063501*x20
+ &amp;x2' == 1.9684*x7 - 1.2755*x1 - 0.2662*x2 - 361.82*x3 - 0.077993*x4 - 44.527*x5 - 81.906*x6 - 5.1592*u1 - 1.9271*x8 - 1.2004*x9 + 0.6848*x10 - 0.38406*x11 - 0.21272*x12 - 0.11664*x13 + 0.063299*x14 - 0.034004*x15 - 0.018089*x16 + 0.0095337*x17 + 0.0049805*x18 - 0.0025801*x19 - 0.001326*x20
+ &amp;x3' == 0.18991*u1 + 80.257*x1 + 361.82*x2 - 0.00036069*x3 - 12.948*x4 - 0.00044539*x5 - 0.00143*x6 + 0.079095*x7 - 0.073708*x8 - 0.044793*x9 + 0.025321*x10 - 0.014158*x11 - 0.007834*x12 - 0.0042942*x13 + 0.0023302*x14 - 0.0012517*x15 - 0.00066588*x16 + 0.00035095*x17 + 0.00018334*x18 - 0.000094977*x19 - 0.000048811*x20
+ &amp;x4' == 12.948*x3 - 0.37371*x1 - 0.077993*x2 - 1.5112*u1 - 0.022851*x4 - 154.64*x5 - 50.478*x6 + 0.57686*x7 - 0.56476*x8 - 0.35178*x9 + 0.20069*x10 - 0.11255*x11 - 0.062341*x12 - 0.034183*x13 + 0.018551*x14 - 0.0099652*x15 - 0.0053012*x16 + 0.002794*x17 + 0.0014596*x18 - 0.00075614*x19 - 0.0003886*x20
+ &amp;x5' == 0.23444*u1 + 69.879*x1 + 44.527*x2 - 0.00044539*x3 + 154.64*x4 - 0.00054998*x5 - 0.0017658*x6 + 0.097694*x7 - 0.091039*x8 - 0.055324*x9 + 0.031274*x10 - 0.017486*x11 - 0.0096759*x12 - 0.0053039*x13 + 0.0028781*x14 - 0.001546*x15 - 0.00082244*x16 + 0.00043346*x17 + 0.00022644*x18 - 0.00011731*x19 - 0.000060288*x20
+ &amp;x6' == 0.75255*u1 + 180.33*x1 + 81.906*x2 - 0.00143*x3 + 50.478*x4 - 0.0017658*x5 - 0.0056693*x6 + 0.31373*x7 - 0.29236*x8 - 0.17766*x9 + 0.10043*x10 - 0.056154*x11 - 0.031072*x12 - 0.017032*x13 + 0.0092423*x14 - 0.0049647*x15 - 0.0026411*x16 + 0.001392*x17 + 0.00072717*x18 - 0.00037671*x19 - 0.0001936*x20
+ &amp;x7' == 19.91*u1 + 9.4271*x1 + 1.9684*x2 - 0.079095*x3 + 0.57686*x4 - 0.097694*x5 - 0.31373*x6 - 90.555*x7 + 120.47*x8 + 92.197*x9 - 57.569*x10 + 33.343*x11 + 18.664*x12 + 10.267*x13 - 5.5775*x14 + 2.997*x15 + 1.5945*x16 - 0.84037*x17 - 0.43902*x18 + 0.22743*x19 + 0.11688*x20
+ &amp;x8' == 0.073708*x3 - 9.2291*x1 - 1.9271*x2 - 19.032*u1 - 0.56476*x4 + 0.091039*x5 + 0.29236*x6 + 120.47*x7 - 189.29*x8 - 171.84*x9 + 118.5*x10 - 71.461*x11 - 40.558*x12 - 22.41*x13 + 12.19*x14 - 6.5527*x15 - 3.4866*x16 + 1.8377*x17 + 0.96003*x18 - 0.49734*x19 - 0.2556*x20
+ &amp;x9' == 0.044793*x3 - 5.7485*x1 - 1.2004*x2 - 11.711*u1 - 0.35178*x4 + 0.055324*x5 + 0.17766*x6 + 92.197*x7 - 171.84*x8 - 201.52*x9 + 172.45*x10 - 116.18*x11 - 68.785*x12 - 38.538*x13 + 21.052*x14 - 11.331*x15 - 6.0312*x16 + 3.1792*x17 + 1.6609*x18 - 0.86044*x19 - 0.44221*x20
+ &amp;x10' == 6.6509*u1 + 3.2795*x1 + 0.6848*x2 - 0.025321*x3 + 0.20069*x4 - 0.031274*x5 - 0.10043*x6 - 57.569*x7 + 118.5*x8 + 172.45*x9 - 198.58*x10 + 169.1*x11 + 112.29*x12 + 65.615*x13 - 36.327*x14 + 19.63*x15 + 10.461*x16 - 5.5159*x17 - 2.882*x18 + 1.493*x19 + 0.76733*x20
+ &amp;x11' == 0.014158*x3 - 1.8392*x1 - 0.38406*x2 - 3.7244*u1 - 0.11255*x4 + 0.017486*x5 + 0.056154*x6 + 33.343*x7 - 71.461*x8 - 116.18*x9 + 169.1*x10 - 197.53*x11 - 167.47*x12 - 109.88*x13 + 63.382*x14 - 34.689*x15 - 18.554*x16 + 9.7939*x17 + 5.1186*x18 - 2.652*x19 - 1.363*x20
+ &amp;x12' == 0.007834*x3 - 1.0187*x1 - 0.21272*x2 - 2.0618*u1 - 0.062341*x4 + 0.0096759*x5 + 0.031072*x6 + 18.664*x7 - 40.558*x8 - 68.785*x9 + 112.29*x10 - 167.47*x11 - 197.88*x12 - 167.14*x13 + 108.33*x14 - 61.72*x15 - 33.415*x16 + 17.699*x17 + 9.2591*x18 - 4.7985*x19 - 2.4663*x20
+ &amp;x13' == 0.0042942*x3 - 0.55858*x1 - 0.11664*x2 - 1.1304*u1 - 0.034183*x4 + 0.0053039*x5 + 0.017032*x6 + 10.267*x7 - 22.41*x8 - 38.538*x9 + 65.615*x10 - 109.88*x11 - 167.14*x12 - 199.49*x13 + 167.67*x14 - 107.39*x15 - 60.468*x16 + 32.403*x17 + 17.006*x18 - 8.8211*x19 - 4.535*x20
+ &amp;x14' == 0.61341*u1 + 0.30314*x1 + 0.063299*x2 - 0.0023302*x3 + 0.018551*x4 - 0.0028781*x5 - 0.0092423*x6 - 5.5775*x7 + 12.19*x8 + 21.052*x9 - 36.327*x10 + 63.382*x11 + 108.33*x12 + 167.67*x13 - 201.66*x14 + 168.58*x15 + 106.74*x16 - 59.442*x17 - 31.547*x18 + 16.414*x19 + 8.4452*x20
+ &amp;x15' == 0.0012517*x3 - 0.16284*x1 - 0.034004*x2 - 0.32951*u1 - 0.0099652*x4 + 0.001546*x5 + 0.0049647*x6 + 2.997*x7 - 6.5527*x8 - 11.331*x9 + 19.63*x10 - 34.689*x11 - 61.72*x12 - 107.39*x13 + 168.58*x14 - 204.04*x15 - 169.65*x16 + 106.26*x17 + 58.558*x18 - 30.795*x19 - 15.891*x20
+ &amp;x16' == 0.00066588*x3 - 0.086627*x1 - 0.018089*x2 - 0.17529*u1 - 0.0053012*x4 + 0.00082244*x5 + 0.0026411*x6 + 1.5945*x7 - 3.4866*x8 - 6.0312*x9 + 10.461*x10 - 18.554*x11 - 33.415*x12 - 60.468*x13 + 106.74*x14 - 169.65*x15 - 206.49*x16 + 170.77*x17 + 105.86*x18 - 57.769*x19 - 30.118*x20
+ &amp;x17' == 0.092386*u1 + 0.045656*x1 + 0.0095337*x2 - 0.00035095*x3 + 0.002794*x4 - 0.00043346*x5 - 0.001392*x6 - 0.84037*x7 + 1.8377*x8 + 3.1792*x9 - 5.5159*x10 + 9.7939*x11 + 17.699*x12 + 32.403*x13 - 59.442*x14 + 106.26*x15 + 170.77*x16 - 208.92*x17 - 171.9*x18 + 105.52*x19 + 57.046*x20
+ &amp;x18' == 0.048263*u1 + 0.023851*x1 + 0.0049805*x2 - 0.00018334*x3 + 0.0014596*x4 - 0.00022644*x5 - 0.00072717*x6 - 0.43902*x7 + 0.96003*x8 + 1.6609*x9 - 2.882*x10 + 5.1186*x11 + 9.2591*x12 + 17.006*x13 - 31.547*x14 + 58.558*x15 + 105.86*x16 - 171.9*x17 - 211.29*x18 + 172.99*x19 + 105.21*x20
+ &amp;x19' == 0.000094977*x3 - 0.012356*x1 - 0.0025801*x2 - 0.025003*u1 - 0.00075613*x4 + 0.00011731*x5 + 0.00037671*x6 + 0.22743*x7 - 0.49734*x8 - 0.86044*x9 + 1.493*x10 - 2.652*x11 - 4.7985*x12 - 8.8211*x13 + 16.414*x14 - 30.795*x15 - 57.769*x16 + 105.52*x17 + 172.99*x18 - 213.6*x19 - 174.05*x20
+ &amp;x20' == 0.000048811*x3 - 0.0063501*x1 - 0.001326*x2 - 0.01285*u1 - 0.0003886*x4 + 0.000060288*x5 + 0.0001936*x6 + 0.11688*x7 - 0.2556*x8 - 0.44221*x9 + 0.76733*x10 - 1.363*x11 - 2.4663*x12 - 4.535*x13 + 8.4452*x14 - 15.891*x15 - 30.118*x16 + 57.046*x17 + 105.21*x18 - 174.05*x19 - 215.83*x20
+ &amp;t' == 1</flow>
+     </location>
+   </component>     <component id="sys">
+    <param name="x1" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x2" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x3" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x4" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x5" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x6" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x7" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x8" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x9" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x10" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x11" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x12" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x13" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x14" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x15" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x16" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x17" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x18" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x19" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="x20" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="t" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="stoptime" type="real" local="false" d1="1" d2="1" dynamics="const" controlled="true" />
+    <param name="y1" type="real" local="false" d1="1" d2="1" dynamics="any" controlled="true" />
+    <param name="u1" type="real" local="false" d1="1" d2="1" dynamics="const" controlled="true" />
+     <bind component="core_component" as="model">
+       <map key="x1">x1</map>
+       <map key="x2">x2</map>
+       <map key="x3">x3</map>
+       <map key="x4">x4</map>
+       <map key="x5">x5</map>
+       <map key="x6">x6</map>
+       <map key="x7">x7</map>
+       <map key="x8">x8</map>
+       <map key="x9">x9</map>
+       <map key="x10">x10</map>
+       <map key="x11">x11</map>
+       <map key="x12">x12</map>
+       <map key="x13">x13</map>
+       <map key="x14">x14</map>
+       <map key="x15">x15</map>
+       <map key="x16">x16</map>
+       <map key="x17">x17</map>
+       <map key="x18">x18</map>
+       <map key="x19">x19</map>
+       <map key="x20">x20</map>
+       <map key="t">t</map>
+       <map key="stoptime">stoptime</map>
+       <map key="y1">y1</map>
+       <map key="u1">u1</map>
+    </bind>
+  </component>
+</sspaceex>
