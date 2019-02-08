@@ -4,7 +4,7 @@
 # Email: zikangxiong@gmail.com
 # Date:   2018-10-27 21:02:27
 # Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-07 15:42:47
+# Last Modified time: 2019-02-08 12:46:25
 # -------------------------------
 import numpy as np
 from DDPG import *
@@ -98,9 +98,12 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps, learning_e
   linear_func_model_name = 'K.model'
   model_path = model_path+linear_func_model_name+'.npy'
 
+  def rewardf(x, Q, u, R):
+    return env.reward(x, u)
+
   names = {0:"x0", 1:"x1", 2:"x2", 3:"x3", 4:"x4", 5:"x5", 6:"x6", 7:"x7", 8:"x8", 9:"x9", 10:"x10", 11:"x11", 12:"x12", 13:"x13", 14:"x14"}
   shield = Shield(env, actor, model_path)
-  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, names=names, explore_mag = 0.1, step_size = 0.1)
+  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, rewardf=rewardf, names=names, explore_mag = 0.1, step_size = 0.1)
   shield.test_shield(10, 5000)
 
   ################# Metrics ######################
@@ -119,4 +122,4 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps, learning_e
   actor.sess.close()
 
 if __name__ == "__main__":
-  carplatoon("random_search", 100, 500, 0, [400, 300, 200], [500, 400, 300, 200], "ddpg_chkp/car-platoon/continuous/8/400300200500400300200/") 
+  carplatoon("random_search", 200, 2000, 0, [400, 300, 200], [500, 400, 300, 200], "ddpg_chkp/car-platoon/continuous/8/400300200500400300200/") 

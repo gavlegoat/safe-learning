@@ -2,7 +2,7 @@
 # Email: zikangxiong@gmail.com
 # Date:   2018-10-28 13:59:19
 # Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-07 11:45:21
+# Last Modified time: 2019-02-08 10:45:11
 # -------------------------------
 import metrics
 from metrics import timeit
@@ -86,7 +86,7 @@ class Shield(object):
           return self.K
 
         def draw_oracle_continuous(x, K):
-          # draw_controller (self.env.A, self.env.B, self.K, x, simulation_steps*shield_testing_on_x_ep_len, names, True, 0.01)
+          draw_controller (self.env.A, self.env.B, self.K, x, simulation_steps*shield_testing_on_x_ep_len, names, True, 0.01)
           test_reward = testf if testf is not None else default_testf_continous
           result = test_controller (self.env.A, self.env.B, self.K, x, simulation_steps*shield_testing_on_x_ep_len, rewardf=test_reward, \
             continuous=True, timestep=self.env.timestep, coffset=coffset, bias=bias)
@@ -226,7 +226,7 @@ class Shield(object):
 
         def learning_oracle_discrete(x):
           self.K = learn_shield(self.env.A, self.env.B, self.env.Q, self.env.R, x, eq_err,\
-            learning_method, number_of_rollouts, simulation_steps, self.actor, self.env.x_min, self.env.x_max, \
+            learning_method, number_of_rollouts, simulation_steps, self.actor, self.env.x_min, self.env.x_max, rewardf=rewardf,\
             continuous=False, timestep=self.env.timestep, explore_mag = explore_mag, step_size = step_size, coffset=coffset, bias=bias, \
             unsafe_flag=self.env.unsafe, lqr_start=lqr_start)
           return self.K
