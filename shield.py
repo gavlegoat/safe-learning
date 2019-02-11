@@ -2,7 +2,7 @@
 # Email: zikangxiong@gmail.com
 # Date:   2018-10-28 13:59:19
 # Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-08 10:45:11
+# Last Modified time: 2019-02-10 15:32:04
 # -------------------------------
 import metrics
 from metrics import timeit
@@ -621,7 +621,7 @@ class Shield(object):
 
     for ep in xrange(test_ep):
       if x0 is not None:
-        x = self.env.resetX(x0)
+        x = self.env.reset(x0)
       else:
         x = self.env.reset()
       init_x = x

@@ -460,7 +460,7 @@ def random_search_for_init_buffer(env, args, target, trance_number, rewardf, max
   xk_list_batch = []
   action_list_batch = []
   for i in xrange(trance_number):
-      env.resetX(target)
+      env.reset(target)
       xk, r, terminal = env.observation()
       count = 0
       xk_list = [env.xk]
@@ -518,7 +518,7 @@ def random_search_for_init_buffer(env, args, target, trance_number, rewardf, max
 def generate_replay_buffer(env, batch, buffer_size):
   replay_buffer = ReplayBuffer(buffer_size)
   for x0, action_list in batch:
-    env.resetX(x0)
+    env.reset(x0)
     for u in action_list:
       x1 = env.xk
       _, r, terminal = env.step(u)

@@ -4,7 +4,7 @@
 # Email: zikangxiong@gmail.com
 # Date:   2018-10-27 21:02:27
 # Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-08 12:46:25
+# Last Modified time: 2019-02-10 14:10:56
 # -------------------------------
 import numpy as np
 from DDPG import *
@@ -56,8 +56,8 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps, learning_e
   s_min = np.array([[ 19.9],[ 0.9], [-0.1], [ 0.9],[-0.1], [ 0.9], [-0.1], [ 0.9], [-0.1], [ 0.9],[-0.1], [ 0.9], [-0.1], [ 0.9], [-0.1]])
   s_max = np.array([[ 20.1],[ 1.1], [ 0.1], [ 1.1],[ 0.1], [ 1.1], [ 0.1], [ 1.1], [ 0.1], [ 1.1],[ 0.1], [ 1.1], [ 0.1], [ 1.1], [ 0.1]])
 
-  x_min = np.array([[18],[0.1],[-1],[0.5],[-1],[0.5],[-1],[0.5],[-1],[0.5],[-1],[0.5],[-0.13],[0.5],[-1]])
-  x_max = np.array([[22],[1.5], [1],[1.5],[ 1],[1.5],[ 1],[1.5], [1],[1.5],[ 1],[1.5],[ 0.13],[1.5],[ 1]])
+  x_min = np.array([[18],[0.1],[-1],[0.5],[-1],[0.5],[-1],[0.5],[-1],[0.5],[-1],[0.5],[-1],[0.5],[-1]])
+  x_max = np.array([[22],[1.5], [1],[1.5],[ 1],[1.5],[ 1],[1.5], [1],[1.5],[ 1],[1.5],[ 1],[1.5],[ 1]])
   u_min = np.array([[-10.], [-10.], [-10.], [-10.], [-10.], [-10.], [-10.], [-10.]])
   u_max = np.array([[ 10.], [ 10.], [ 10.], [ 10.], [ 10.], [ 10.], [ 10.], [ 10.]])
 
@@ -75,20 +75,20 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps, learning_e
   np.fill_diagonal(R, 1)
 
   env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R, continuous=True, bad_reward=-1000)
-  args = { 'actor_lr': 0.001,
-           'critic_lr': 0.01,
+  args = { 'actor_lr': 0.000001,
+           'critic_lr': 0.00001,
            'actor_structure': actor_structure,
            'critic_structure': critic_structure, 
            'buffer_size': 1000000,
-           'gamma': 0.99,
-           'max_episode_len': 100,
+           'gamma': 0.999,
+           'max_episode_len': 400,
            'max_episodes': learning_eposides,
            'minibatch_size': 64,
-           'random_seed': 222,
+           'random_seed': 122,
            'tau': 0.005,
            'model_path': train_dir+"model.chkp",
            'enable_test': True, 
-           'test_episodes': 1,
+           'test_episodes': 1000,
            'test_episodes_len': 5000}
   actor = DDPG(env, args)
   # actor_boundary(env, actor, 1000, 1000)
@@ -104,7 +104,7 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps, learning_e
   names = {0:"x0", 1:"x1", 2:"x2", 3:"x3", 4:"x4", 5:"x5", 6:"x6", 7:"x7", 8:"x8", 9:"x9", 10:"x10", 11:"x11", 12:"x12", 13:"x13", 14:"x14"}
   shield = Shield(env, actor, model_path)
   shield.train_shield(learning_method, number_of_rollouts, simulation_steps, rewardf=rewardf, names=names, explore_mag = 0.1, step_size = 0.1)
-  shield.test_shield(10, 5000)
+  shield.test_shield(1000, 5000)
 
   ################# Metrics ######################
   # actor_boundary(env, actor, 1000, 400)
