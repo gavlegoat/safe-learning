@@ -2,7 +2,7 @@
 # Email: zikangxiong@gmail.com
 # Date:   2018-10-28 13:59:19
 # Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-10 15:32:04
+# Last Modified time: 2019-02-11 17:35:58
 # -------------------------------
 import metrics
 from metrics import timeit
@@ -41,7 +41,7 @@ class Shield(object):
 
   @timeit
   def train_shield(self, learning_method, number_of_rollouts, simulation_steps, eq_err=1e-2, rewardf=None, testf=None, explore_mag = .04, step_size = .05, names=None, 
-    coffset=None, bias=False, discretization=False, lqr_start=False):
+    coffset=None, bias=False, discretization=False, lqr_start=False, degree=4):
     """train shield
     
     Args:
@@ -86,7 +86,7 @@ class Shield(object):
           return self.K
 
         def draw_oracle_continuous(x, K):
-          draw_controller (self.env.A, self.env.B, self.K, x, simulation_steps*shield_testing_on_x_ep_len, names, True, 0.01)
+          # draw_controller (self.env.A, self.env.B, self.K, x, simulation_steps*shield_testing_on_x_ep_len, names, True, 0.01)
           test_reward = testf if testf is not None else default_testf_continous
           result = test_controller (self.env.A, self.env.B, self.K, x, simulation_steps*shield_testing_on_x_ep_len, rewardf=test_reward, \
             continuous=True, timestep=self.env.timestep, coffset=coffset, bias=bias)
@@ -177,7 +177,7 @@ class Shield(object):
              # Now we have init, unsafe and sysdynamics for verification
             sos = genSOSContinuousAsDiscreteMultipleUnsafes(
                         self.env.timestep, self.env.state_dim, ",".join(dxdt(Acl)), "\n".join(init), "\n".join(unsafe), 
-                        "\n".join(initSOSPoly), "\n".join(unsafeSOSPoly), "".join(init_cnstr), unsafe_cnstr)
+                        "\n".join(initSOSPoly), "\n".join(unsafeSOSPoly), "".join(init_cnstr), unsafe_cnstr, degree=degree)
             verified = verifySOS(writeSOS("SOS.jl", sos), False, 900)
             print verified
             
