@@ -4,7 +4,7 @@
 # Email: zikangxiong@gmail.com
 # Date:   2018-10-18 14:26:25
 # Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-10 15:31:55
+# Last Modified time: 2019-02-13 02:05:39
 # -------------------------------
 ################ Environment Module ######################
 import numpy as np
@@ -218,19 +218,17 @@ class PolySysEnvironment:
     # sample an initial condition for system
     self.reset()
 
-  def reset(self):
-    self.x0 = np.matrix(
-        [[np.random.uniform(self.s_min[i, 0], self.s_max[i, 0])] for i in range(self.state_dim)],
-    )
+  def reset(self, x0=None):
+    if x0 is None:
+      # sample an initial condition for system
+      self.x0 = np.matrix(
+          [[np.random.uniform(self.s_min[i, 0], self.s_max[i, 0])] for i in range(self.state_dim)],
+      )
+    else:
+      self.x0 = np.matrix(x0)
     self.xk = self.x0
     self.last_u = np.zeros((1, self.action_dim))
-    return self.xk
-
-  def resetX(self, x):
-    self.x0 = np.matrix(x)
-    self.xk = self.x0
-    self.last_u = np.zeros((1, self.action_dim))
-    return np.matrix(x)
+    return np.matrix(self.xk)
 
   def reward(self, x, u):
     if self.rewardf:
