@@ -1,0 +1,2 @@
+shield_analysis/oscillator18/oscillator18.log filter=lfs diff=lfs merge=lfs -text
+shield_analysis/oscillator18/oscillator18.log_ret.pkl filter=lfs diff=lfs merge=lfs -text
