@@ -1,12 +1,12 @@
 from main import *
-
 from shield import Shield
 from Environment import PolySysEnvironment
-
 from DDPG import *
 
-# Show that there is an invariant that can prove the policy safe
-def biology (learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir):
+import argparse
+
+def biology (learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir,\
+            nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
   # 10-dimension and 1-input system and 1-disturbance system
   ds = 3
   us = 2
@@ -68,20 +68,6 @@ def biology (learning_method, number_of_rollouts, simulation_steps, learning_epo
   u_min = np.array([[-50.], [-50]])
   u_max = np.array([[ 50.], [ 50]])
 
-  # K = np.array([[0, 0, 0],
-  # [0,  0,  0]])
-
-  # #sample an initial condition for system
-  # x0 = np.matrix([
-  #   [random.uniform(s_min[0, 0], s_max[0, 0])], 
-  #   [random.uniform(s_min[1, 0], s_max[1, 0])],
-  #   [random.uniform(s_min[2, 0], s_max[2, 0])], 
-  # ])
-
-  # names = {0:"X", 1:"G", 2:"I"}
-
-  # draw_controller_helper (f, K, x0, simulation_steps, names, continuous=True, timestep=h, rewardf=testf)
-
   env = PolySysEnvironment(f, f_to_str,rewardf, testf, unsafe_string, ds, us, Q, R, s_min, s_max, u_max=u_max, u_min=u_min, timestep=h)
 
   ############ Train and Test NN model ############
@@ -97,22 +83,33 @@ def biology (learning_method, number_of_rollouts, simulation_steps, learning_epo
        'random_seed': 6553,
        'tau': 0.005,
        'model_path': train_dir+"model.chkp",
-       'enable_test': True, 
-       'test_episodes': 1,
+       'enable_test': nn_test, 
+       'test_episodes': test_episodes,
        'test_episodes_len': 1000}
   actor =  DDPG(env, args=args)
-  #actor_boundary(env, actor, 1000, 100)
 
   #################### Shield #################
   model_path = os.path.split(args['model_path'])[0]+'/'
   linear_func_model_name = 'K.model'
   model_path = model_path+linear_func_model_name+'.npy'
 
-  shield = Shield(env, actor, model_path=model_path, force_learning=False)
-  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag = 0.4, step_size = 0.5)
-  shield.test_shield(1, 100, mode="single")
-  #shield.test_shield(1, 100, mode="all")
+  shield = Shield(env, actor, model_path=model_path, force_learning=retrain_shield)
+  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag = 0.4, step_size = 0.5, aggressive=True)
+  if shield_test:
+    shield.test_shield(test_episodes, 1000, mode="single")
   actor.sess.close()
   
 
-biology ("random_search", 100, 300, 0, [240, 200], [280, 240, 200], "ddpg_chkp/biology/240200280240200/")
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description='Running Options')
+  parser.add_argument('--nn_test', action="store_true", dest="nn_test")
+  parser.add_argument('--retrain_shield', action="store_true", dest="retrain_shield")
+  parser.add_argument('--shield_test', action="store_true", dest="shield_test")
+  parser.add_argument('--test_episodes', action="store", dest="test_episodes", type=int)
+  parser_res = parser.parse_args()
+  nn_test = parser_res.nn_test
+  retrain_shield = parser_res.retrain_shield
+  shield_test = parser_res.shield_test
+  test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
+
+  biology ("random_search", 500, 200, 0, [240, 200], [280, 240, 200], "ddpg_chkp/biology/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)

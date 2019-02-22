@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-# -------------------------------
-# Author: Zikang Xiong
-# Email: zikangxiong@gmail.com
-# Date:   2018-10-18 14:26:25
-# Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-13 02:05:39
-# -------------------------------
 ################ Environment Module ######################
 import numpy as np
 

@@ -1,9 +1,3 @@
-# Author: Zikang Xiong
-# Email: zikangxiong@gmail.com
-# Date:   2018-10-28 13:59:19
-# Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-11 17:35:58
-# -------------------------------
 import metrics
 from metrics import timeit
 from main import *
@@ -41,7 +35,7 @@ class Shield(object):
 
   @timeit
   def train_shield(self, learning_method, number_of_rollouts, simulation_steps, eq_err=1e-2, rewardf=None, testf=None, explore_mag = .04, step_size = .05, names=None, 
-    coffset=None, bias=False, discretization=False, lqr_start=False, degree=4):
+    coffset=None, bias=False, discretization=False, lqr_start=False, degree=4, without_nn_guide=False):
     """train shield
     
     Args:
@@ -82,7 +76,7 @@ class Shield(object):
           self.K = learn_shield(self.env.A, self.env.B, self.env.Q, self.env.R, x, eq_err,\
             learning_method, number_of_rollouts, simulation_steps, self.actor, self.env.x_min, self.env.x_max, rewardf=rewardf, \
             continuous=True, timestep=self.env.timestep, explore_mag = explore_mag, step_size = step_size, coffset=coffset, bias=bias, \
-            unsafe_flag=self.env.unsafe, lqr_start=lqr_start)
+            unsafe_flag=self.env.unsafe, lqr_start=lqr_start, without_nn_guide=without_nn_guide)
           return self.K
 
         def draw_oracle_continuous(x, K):
@@ -228,7 +222,7 @@ class Shield(object):
           self.K = learn_shield(self.env.A, self.env.B, self.env.Q, self.env.R, x, eq_err,\
             learning_method, number_of_rollouts, simulation_steps, self.actor, self.env.x_min, self.env.x_max, rewardf=rewardf,\
             continuous=False, timestep=self.env.timestep, explore_mag = explore_mag, step_size = step_size, coffset=coffset, bias=bias, \
-            unsafe_flag=self.env.unsafe, lqr_start=lqr_start)
+            unsafe_flag=self.env.unsafe, lqr_start=lqr_start, without_nn_guide=without_nn_guide)
           return self.K
 
         def draw_oracle_discrete(x, K):
@@ -267,7 +261,7 @@ class Shield(object):
 
   @timeit
   def train_polysys_shield(self, learning_method, number_of_rollouts, simulation_steps, eq_err=1e-2, 
-        explore_mag = .04, step_size = .05, names=None, coffset=None, bias=False, degree=4, aggressive=False):
+        explore_mag = .04, step_size = .05, names=None, coffset=None, bias=False, degree=4, aggressive=False, without_nn_guide=False):
     """train shield
     
     Args:
@@ -305,7 +299,7 @@ class Shield(object):
       def learning_oracle_continuous(x):
         self.K = learn_polysys_shield(self.env.polyf, self.env.state_dim, self.env.action_dim, self.env.Q, self.env.R, x, eq_err,\
           learning_method, number_of_rollouts, simulation_steps, self.actor, rewardf=self.env.rewardf, \
-          continuous=True, timestep=self.env.timestep, explore_mag = explore_mag, step_size = step_size, coffset=coffset, bias=bias)
+          continuous=True, timestep=self.env.timestep, explore_mag = explore_mag, step_size = step_size, coffset=coffset, bias=bias, without_nn_guide=without_nn_guide)
 
         return self.K
 

@@ -1,12 +1,3 @@
-# -*- coding: utf-8 -*-
-# -------------------------------
-# Author: Zikang Xiong
-# Email: zikangxiong@gmail.com
-# Date:   2018-10-12 12:15:33
-# Last Modified by:   Zikang Xiong
-# Last Modified time: 2018-11-15 00:13:08
-# -------------------------------
-
 import numpy as np
 import time
 

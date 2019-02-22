@@ -3,8 +3,10 @@ from main import *
 import os.path
 from Environment import Environment
 from shield import Shield
+import argparse
 
-def dcmotor (learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir):
+def dcmotor (learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir,\
+            nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
   A = np.matrix([[0.98965,1.4747e-08],
     [7.4506e-09,0]
     ])
@@ -46,9 +48,9 @@ def dcmotor (learning_method, number_of_rollouts, simulation_steps, learning_epo
            'random_seed': 6553,
            'tau': 0.005,
            'model_path': train_dir+"model.chkp",
-           'enable_test': True, 
-           'test_episodes': 1,
-           'test_episodes_len': 500}
+           'enable_test': nn_test, 
+           'test_episodes': test_episodes,
+           'test_episodes_len': 5000}
   actor = DDPG(env, args)
 
   #################### Shield #################
@@ -56,9 +58,21 @@ def dcmotor (learning_method, number_of_rollouts, simulation_steps, learning_epo
   linear_func_model_name = 'K.model'
   model_path = model_path+linear_func_model_name+'.npy'
 
-  shield = Shield(env, actor, model_path)
+  shield = Shield(env, actor, model_path, force_learning=retrain_shield)
   shield.train_shield(learning_method, number_of_rollouts, simulation_steps, explore_mag = 0.0004, step_size = 0.0005)
-  shield.test_shield(1, 500, mode="single")
-  # shield.test_shield(1, 500, mode="all")
+  if shield_test:
+    shield.test_shield(test_episodes, 5000, mode="single")
 
-dcmotor("random_search", 100, 200, 0, [240,200], [280,240,200], "review_model_temp/")
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description='Running Options')
+  parser.add_argument('--nn_test', action="store_true", dest="nn_test")
+  parser.add_argument('--retrain_shield', action="store_true", dest="retrain_shield")
+  parser.add_argument('--shield_test', action="store_true", dest="shield_test")
+  parser.add_argument('--test_episodes', action="store", dest="test_episodes", type=int)
+  parser_res = parser.parse_args()
+  nn_test = parser_res.nn_test
+  retrain_shield = parser_res.retrain_shield
+  shield_test = parser_res.shield_test
+  test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
+  
+  dcmotor("random_search", 100, 200, 0, [240,200], [280,240,200], "ddpg_chkp/dcmotor/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)

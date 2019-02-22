@@ -1,20 +1,14 @@
-# -*- coding: utf-8 -*-
-# -------------------------------
-# Author: Zikang Xiong
-# Email: zikangxiong@gmail.com
-# Date:   2018-11-06 12:23:39
-# Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-06 14:53:12
-# -------------------------------
 from main import *
 
 from shield import Shield
 from Environment import PolySysEnvironment
 
 from DDPG import *
+import argparse
 
 # Show that there is an invariant that can prove the policy safe
-def selfdrive(learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir, K=None):
+def selfdrive(learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir, \
+            nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
   # 2-dimension and 1-input system
   ds = 2
   us = 1
@@ -23,14 +17,6 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps, learning_ep
   v = 2
   cl = 2
   cr = -2
-
-  #Dynamics that are defined as a continuous function!
-  # def f (x, u):
-  #   #We have two aeroplanes with 2 inputs for each controlling its own angular velocity!
-  #   delta = np.zeros((ds, 1), float)
-  #   delta[0, 0] = -v*math.sin(x[1, 0])      #distance
-  #   delta[1, 0] = u[0, 0]                   #angular velocity (controlled by AI)
-  #   return delta
 
   def f(x, u):
     #We have two aeroplanes with 2 inputs for each controlling its own angular velocity!
@@ -129,25 +115,35 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps, learning_ep
        'random_seed': 6553,
        'tau': 0.005,
        'model_path': train_dir+"model.chkp",
-       'enable_test': True, 
-       'test_episodes': 10,
-       'test_episodes_len': 5000}
+       'enable_test': nn_test, 
+       'test_episodes': test_episodes,
+       'test_episodes_len': 1000}
   actor =  DDPG(env, args=args)
 
   model_path = os.path.split(args['model_path'])[0]+'/'
   linear_func_model_name = 'K.model'
   model_path = model_path+linear_func_model_name+'.npy'
 
-  shield = Shield(env, actor, model_path=model_path, force_learning=False)
-  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps)
-  shield.test_shield(10, 5000)
+  def rewardf(x, Q, u, R):
+    return np.matrix([[env.reward(x, u)]])
+
+  shield = Shield(env, actor, model_path=model_path, force_learning=retrain_shield)
+  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, explore_mag = 0.04, step_size = 0.03, without_nn_guide=True)
+  if shield_test:
+    shield.test_shield(test_episodes, 1000)
 
   actor.sess.close()
 
 if __name__ == "__main__":
-  # learning_eposides = int(sys.argv[1])
-  # actor_structure = [int(i) for i in list(sys.argv[2].split(','))]
-  # critic_structure = [int(i) for i in list(sys.argv[3].split(','))]
-  # train_dir = sys.argv[4]
+  parser = argparse.ArgumentParser(description='Running Options')
+  parser.add_argument('--nn_test', action="store_true", dest="nn_test")
+  parser.add_argument('--retrain_shield', action="store_true", dest="retrain_shield")
+  parser.add_argument('--shield_test', action="store_true", dest="shield_test")
+  parser.add_argument('--test_episodes', action="store", dest="test_episodes", type=int)
+  parser_res = parser.parse_args()
+  nn_test = parser_res.nn_test
+  retrain_shield = parser_res.retrain_shield
+  shield_test = parser_res.shield_test
+  test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
 
-  selfdrive("random_search", 100, 100, 0, [300, 200], [300, 250, 200], "ddpg_chkp/selfdriving/300200300250200/")
+  selfdrive("random_search", 200, 200, 0, [300, 200], [300, 250, 200], "ddpg_chkp/selfdriving/300200300250200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)

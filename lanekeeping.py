@@ -3,8 +3,10 @@ from main import *
 from shield import Shield
 from Environment import PolySysEnvironment
 from DDPG import *
+import argparse
 
-def lanekeep (learning_method, number_of_rollouts, simulation_steps, learning_eposides, actor_structure, critic_structure, train_dir):
+def lanekeep (learning_method, number_of_rollouts, simulation_steps, learning_eposides, actor_structure, critic_structure, train_dir,\
+            nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
   v0 = 27.7
   cf = 133000
   cr = 98800
@@ -48,16 +50,6 @@ def lanekeep (learning_method, number_of_rollouts, simulation_steps, learning_ep
   #intial state space
   s_min = np.array([[ -0.1],[ -0.1], [-0.1], [ -0.1]])
   s_max = np.array([[  0.1],[  0.1], [ 0.1], [  0.1]])
-  # S0 = Polyhedron.from_bounds(s_min, s_max)
-
-  #sample an initial condition for system
-  # x0 = np.matrix([
-  #     [random.uniform(s_min[0, 0], s_max[0, 0])], 
-  #     [random.uniform(s_min[1, 0], s_max[1, 0])],
-  #     [random.uniform(s_min[2, 0], s_max[2, 0])],
-  #     [random.uniform(s_min[3, 0], s_max[3, 0])]
-  #   ])
-  # print ("Sampled initial state is:\n {}".format(x0))
 
   Q = np.matrix("1 0 0 0; 0 1 0 0 ; 0 0 1 0; 0 0 0 1")
   R = np.matrix(".0005 0; 0 .0005")
@@ -76,7 +68,7 @@ def lanekeep (learning_method, number_of_rollouts, simulation_steps, learning_ep
     reward += -np.dot(x.T,Q.dot(x))-np.dot(u.T,R.dot(u))
 
     if (unsafe_eval(x)):
-      reward -= 1
+      reward -= 1e-3
     return reward
 
   def testf(x, u):
@@ -95,29 +87,38 @@ def lanekeep (learning_method, number_of_rollouts, simulation_steps, learning_ep
        'critic_structure': critic_structure, 
        'buffer_size': 1000000,
        'gamma': 0.99,
-       'max_episode_len': 1,
+       'max_episode_len': 1000,
        'max_episodes': learning_eposides,
        'minibatch_size': 64,
        'random_seed': 6553,
        'tau': 0.005,
        'model_path': train_dir+"model.chkp",
-       'enable_test': True, 
-       'test_episodes': 100,
+       'enable_test': nn_test, 
+       'test_episodes': test_episodes,
        'test_episodes_len': 1000}
 
   actor =  DDPG(env, args)
-  #actor_boundary(env, actor, 1000, 100)
 
   model_path = os.path.split(args['model_path'])[0]+'/'
   linear_func_model_name = 'K.model'
   model_path = model_path+linear_func_model_name+'.npy'
 
-  shield = Shield(env, actor, model_path=model_path, force_learning=False)
-  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag=0.1, step_size=0.1)
-  shield.test_shield(10, 1000, mode="single")
-  # shield.test_shield(100, 1000, mode="all")
 
-# K = np.array([[-4.21528005, -0.55237926, -9.45587692, -0.50038062],
-#  [-2.04298819,  0.50994964,  3.29331539, -1.02047674]])
+  shield = Shield(env, actor, model_path=model_path, force_learning=retrain_shield)
+  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag=0.02, step_size=0.01, without_nn_guide=True, aggressive=True)
+  if shield_test:
+    shield.test_shield(test_episodes, 1000, mode="single")
 
-lanekeep("random_search", 200, 500, 0, [240, 200], [280, 240, 200], "ddpg_chkp/lanekeeping/240200280240200/")
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description='Running Options')
+  parser.add_argument('--nn_test', action="store_true", dest="nn_test")
+  parser.add_argument('--retrain_shield', action="store_true", dest="retrain_shield")
+  parser.add_argument('--shield_test', action="store_true", dest="shield_test")
+  parser.add_argument('--test_episodes', action="store", dest="test_episodes", type=int)
+  parser_res = parser.parse_args()
+  nn_test = parser_res.nn_test
+  retrain_shield = parser_res.retrain_shield
+  shield_test = parser_res.shield_test
+  test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
+
+  lanekeep("random_search", 100, 2000, 0, [240, 200], [280, 240, 200], "ddpg_chkp/lanekeeping/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)

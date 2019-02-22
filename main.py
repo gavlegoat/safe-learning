@@ -646,7 +646,7 @@ def synthesize_verifed_controller(x0, A, B, Q, R,
 @timeit
 def learn_shield(A, B, Q, R, x0, eq_err, learning_method, number_of_rollouts, simulation_steps, actor, x_min, x_max, 
     rewardf=None, continuous=False, timestep=.005, explore_mag=.04, step_size=.05, 
-    coffset=None, bias=False, unsafe_flag=False, lqr_start=False):
+    coffset=None, bias=False, unsafe_flag=False, lqr_start=False, without_nn_guide=False):
 
     def reward_func(x, Q, u, R):
       """
@@ -661,8 +661,10 @@ def learn_shield(A, B, Q, R, x0, eq_err, learning_method, number_of_rollouts, si
 
     if actor is None and rewardf is None:
       shield_reward = None
-    else:
+    elif not without_nn_guide:
       shield_reward = reward_func
+    else:
+      shield_reward = rewardf
 
     if (learning_method == "random_search"):
         K = random_search_linear_policy(A,B,Q,R,x0,eq_err,number_of_rollouts,simulation_steps,x_min,x_max,continuous,timestep,shield_reward,explore_mag,step_size,coffset=coffset,bias=bias,unsafe_flag=unsafe_flag,lqr_start=lqr_start)
@@ -679,7 +681,7 @@ def learn_shield(A, B, Q, R, x0, eq_err, learning_method, number_of_rollouts, si
 
 @timeit
 def learn_polysys_shield(f, ds, us, Q, R, x0, eq_err, learning_method, number_of_rollouts, simulation_steps, actor, 
-    rewardf=None, continuous=False, timestep=.005, explore_mag=.04, step_size=.05, coffset=None, bias=False, unsafe_flag=False):
+    rewardf=None, continuous=False, timestep=.005, explore_mag=.04, step_size=.05, coffset=None, bias=False, unsafe_flag=False, without_nn_guide=False):
 
     def reward_func(x, Q, u, R):
       """
@@ -694,8 +696,10 @@ def learn_polysys_shield(f, ds, us, Q, R, x0, eq_err, learning_method, number_of
 
     if actor is None and rewardf is None:
       shield_reward = None
-    else:
+    elif not without_nn_guide:
       shield_reward = reward_func
+    else:
+      shield_reward = rewardf
 
     K = random_search_helper (f, ds, us, Q, R, x0, eq_err, number_of_rollouts, simulation_steps, continuous=continuous, timestep=timestep, rewardf=shield_reward, explore_mag=explore_mag, step_size=step_size, coffset=coffset, bias=bias, unsafe_flag=unsafe_flag)  
 
