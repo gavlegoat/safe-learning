@@ -90,7 +90,7 @@ def lanekeep (learning_method, number_of_rollouts, simulation_steps, learning_ep
        'max_episode_len': 1000,
        'max_episodes': learning_eposides,
        'minibatch_size': 64,
-       'random_seed': 6553,
+       'random_seed': 2903,
        'tau': 0.005,
        'model_path': train_dir+"model.chkp",
        'enable_test': nn_test, 
@@ -105,7 +105,7 @@ def lanekeep (learning_method, number_of_rollouts, simulation_steps, learning_ep
 
 
   shield = Shield(env, actor, model_path=model_path, force_learning=retrain_shield)
-  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag=0.02, step_size=0.01, without_nn_guide=True, aggressive=True)
+  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag=0.4, step_size=0.5, without_nn_guide=True, aggressive=True)
   if shield_test:
     shield.test_shield(test_episodes, 1000, mode="single")
 
@@ -121,4 +121,4 @@ if __name__ == "__main__":
   shield_test = parser_res.shield_test
   test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
 
-  lanekeep("random_search", 100, 2000, 0, [240, 200], [280, 240, 200], "ddpg_chkp/lanekeeping/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)
+  lanekeep("random_search", 200, 200, 0, [240, 200], [280, 240, 200], "ddpg_chkp/lanekeeping/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)
