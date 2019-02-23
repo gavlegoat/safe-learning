@@ -35,7 +35,7 @@ class Shield(object):
 
   @timeit
   def train_shield(self, learning_method, number_of_rollouts, simulation_steps, eq_err=1e-2, rewardf=None, testf=None, explore_mag = .04, step_size = .05, names=None, 
-    coffset=None, bias=False, discretization=False, lqr_start=False, degree=4, without_nn_guide=False):
+    coffset=None, bias=False, discretization=False, lqr_start=False, degree=4, without_nn_guide=False, enable_jit=False):
     """train shield
     
     Args:
@@ -188,14 +188,14 @@ class Shield(object):
         if result:
           for (x, initial_size, inv, K) in resultList:
             self.B_str_list.append(inv+"\n")
-            self.B_list.append(barrier_certificate_str2func(inv, self.env.state_dim))
+            self.B_list.append(barrier_certificate_str2func(inv, self.env.state_dim, enable_jit))
             self.K_list.append(K)
             initial_range = np.array([x-initial_size.reshape(len(initial_size), 1), x+initial_size.reshape(len(initial_size), 1)])
             self.initial_range_list.append(initial_range)
 
           self.save_shield(os.path.split(self.model_path)[0])
       else:
-        self.load_shield(os.path.split(self.model_path)[0])
+        self.load_shield(os.path.split(self.model_path)[0], enable_jit)
 
     # discrete
     else:
@@ -254,14 +254,14 @@ class Shield(object):
         if result:
           self.save_shield(os.path.split(self.model_path)[0])        
       else:
-        self.load_shield(os.path.split(self.model_path)[0])
+        self.load_shield(os.path.split(self.model_path)[0], enable_jit)
 
 
 
 
   @timeit
   def train_polysys_shield(self, learning_method, number_of_rollouts, simulation_steps, eq_err=1e-2, 
-        explore_mag = .04, step_size = .05, names=None, coffset=None, bias=False, degree=4, aggressive=False, without_nn_guide=False):
+        explore_mag = .04, step_size = .05, names=None, coffset=None, bias=False, degree=4, aggressive=False, without_nn_guide=False, enable_jit=False):
     """train shield
     
     Args:
@@ -405,14 +405,14 @@ class Shield(object):
       if result:
         for (x, initial_size, inv, K) in resultList:
             self.B_str_list.append(inv+"\n")
-            self.B_list.append(barrier_certificate_str2func(inv, self.env.state_dim))
+            self.B_list.append(barrier_certificate_str2func(inv, self.env.state_dim, enable_jit))
             self.K_list.append(K)
             initial_range = np.array([x-initial_size.reshape(len(initial_size), 1), x+initial_size.reshape(len(initial_size), 1)])
             self.initial_range_list.append(initial_range)
 
         self.save_shield(os.path.split(self.model_path)[0])
     else:
-      self.load_shield(os.path.split(self.model_path)[0])
+      self.load_shield(os.path.split(self.model_path)[0], enable_jit)
 
   def save_shield(self, model_path):
     if self.env.continuous:
@@ -431,11 +431,11 @@ class Shield(object):
       saveK(model_path+"/initial_range.model", np.array(self.initial_range_list))
       print "store initial_range to "+model_path+"/initial_range.model.npy"
 
-  def load_shield(self, model_path):
+  def load_shield(self, model_path, enable_jit):
     if self.env.continuous:
       with open(model_path+"/shield.model", "r") as f:
         for B_str in f:
-          self.B_list.append(barrier_certificate_str2func(B_str, self.env.state_dim))
+          self.B_list.append(barrier_certificate_str2func(B_str, self.env.state_dim, enable_jit))
       print "load barrier from " + model_path + "/shield.model"
       self.K_list = [K for K in loadK(model_path+"/K.model.npy")]
       print "load K from "+model_path+"/K.model.npy"
@@ -695,12 +695,13 @@ class Shield(object):
 
 
 import re
-def barrier_certificate_str2func(bc_str, vars_num):
+def barrier_certificate_str2func(bc_str, vars_num, enable_jit=False):
   """transform julia barrier string to function
   
   Args:
       bc_str (str): string
       vars_num (int): the dimension number of state
+      enable_jit: enable jit, the performance of B will increase, but it takes time to preprocess B
   """
   eval_str = re.sub("\^", r"**", bc_str)
   variables = ["x"+str(i+1) for i in xrange(vars_num)]
@@ -721,7 +722,11 @@ def barrier_certificate_str2func(bc_str, vars_num):
   for arg in variables:
     args_str += (arg+",")
   args_str = args_str[:-1]
-  exec("""def B({}): return {}""".format(args_str, eval_str)) in locals()
+  if enable_jit:
+    from numba import jit, float64
+    exec(("@jit"+"(float64 ({}))"+"\ndef B({}): return {}").format(("float64,"*vars_num)[:-1], args_str, eval_str))
+  else:
+    exec("""def B({}): return {}""".format(args_str, eval_str))
 
   return B
 

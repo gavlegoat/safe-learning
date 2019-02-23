@@ -9,6 +9,9 @@ Require Python2.7 and usual python packages such as numpy, scipy, matplotlib, ..
 1. pip install tensorflow  
    pip install tflearn  
 
+### Install numba
+1. pip install numba
+
 ### Install Z3:
 1. From https://github.com/Z3Prover/z3/releases, download Z3 binary for MacOS (source code not required) to z3-macos/  
 2. export PYTHONPATH=`pwd`/z3-macos/bin/:  

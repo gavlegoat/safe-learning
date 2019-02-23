@@ -125,7 +125,7 @@ def oscillator(learning_method, number_of_rollouts, simulation_steps, learning_e
   model_path = model_path+linear_func_model_name+'.npy'
 
   shield = Shield(env, actor, model_path=model_path, force_learning=retrain_shield)
-  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag = 0.4, step_size = 0.5)
+  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag = 0.4, step_size = 0.5, enable_jit=True)
   if shield_test:
     shield.test_shield(test_episodes, 1000, mode="single")
   actor.sess.close()

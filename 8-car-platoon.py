@@ -95,7 +95,7 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps, learning_e
 
   names = {0:"x0", 1:"x1", 2:"x2", 3:"x3", 4:"x4", 5:"x5", 6:"x6", 7:"x7", 8:"x8", 9:"x9", 10:"x10", 11:"x11", 12:"x12", 13:"x13", 14:"x14"}
   shield = Shield(env, actor, model_path, force_learning=retrain_shield)
-  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, rewardf=rewardf, names=names, explore_mag = 0.1, step_size = 0.1)
+  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, rewardf=rewardf, names=names, explore_mag = 0.1, step_size = 0.1, enable_jit=True)
   if shield_test:
     shield.test_shield(test_episodes, 1200)
 

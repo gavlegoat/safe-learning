@@ -94,7 +94,7 @@ def biology (learning_method, number_of_rollouts, simulation_steps, learning_epo
   model_path = model_path+linear_func_model_name+'.npy'
 
   shield = Shield(env, actor, model_path=model_path, force_learning=retrain_shield)
-  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag = 0.4, step_size = 0.5, aggressive=True)
+  shield.train_polysys_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=eq_err, explore_mag = 0.4, step_size = 0.5, aggressive=True, without_nn_guide=True, enable_jit=True)
   if shield_test:
     shield.test_shield(test_episodes, 1000, mode="single")
   actor.sess.close()
@@ -112,4 +112,4 @@ if __name__ == "__main__":
   shield_test = parser_res.shield_test
   test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
 
-  biology ("random_search", 500, 200, 0, [240, 200], [280, 240, 200], "ddpg_chkp/biology/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)
+  biology ("random_search", 200, 500, 0, [240, 200], [280, 240, 200], "ddpg_chkp/biology/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)
