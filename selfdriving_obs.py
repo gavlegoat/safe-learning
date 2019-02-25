@@ -54,7 +54,7 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps, learning_ep
        'model_path': train_dir+"model.chkp",
        'enable_test': nn_test, 
        'test_episodes': test_episodes,
-       'test_episodes_len': 5000}
+       'test_episodes_len': 1000}
   actor =  DDPG(env, args=args)
 
   model_path = os.path.split(args['model_path'])[0]+'/'
@@ -67,7 +67,7 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps, learning_ep
   shield = Shield(env, actor, model_path=model_path, force_learning=retrain_shield)
   shield.train_shield(learning_method, number_of_rollouts, simulation_steps, rewardf=rewardf, explore_mag=1.0, step_size=1.0)
   if shield_test:
-    shield.test_shield(test_episodes, 5000)
+    shield.test_shield(test_episodes, 1000)
 
   actor.sess.close()
 
