@@ -601,17 +601,21 @@ class Shield(object):
       
 
   @timeit
-  def test_shield(self, test_ep=1, test_step=5000, x0=None, mode="single", loss_compensation=0):
+  def test_shield(self, test_ep=1, test_step=5000, x0=None, mode="single", loss_compensation=0, shield_combo=1, mute=False):
     """test if shield works
     
     Args:
         test_ep (int, optional): test episodes
         test_step (int, optional): test step in each episode
     """
+    assert shield_combo > 0
+    assert loss_compensation >= 0
+
     fail_time = 0
     success_time = 0
     fail_list = []
     self.shield_count = 0
+    combo_remain = 0
 
     for ep in xrange(test_ep):
       if x0 is not None:
@@ -624,8 +628,15 @@ class Shield(object):
             (1, self.actor.s_dim))), (self.actor.a_dim, 1))
         
         # safe or not
-        if self.detactor(x, u, mode=mode, loss_compensation=loss_compensation):
-          u = self.call_shield(x)
+        if self.detactor(x, u, mode=mode, loss_compensation=loss_compensation) or (combo_remain > 0):
+          if combo_remain == 0:
+            combo_remain = shield_combo
+
+          u = self.call_shield(x, mute=mute)
+          if not mute:
+            print "!shield at step {}".format(i)
+          
+          combo_remain -= 1
 
         # step
         x, _, terminal = self.env.step(u)
