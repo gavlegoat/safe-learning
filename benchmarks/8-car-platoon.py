@@ -12,7 +12,7 @@ from shield import Shield
 
 
 def carplatoon(learning_method, number_of_rollouts, simulation_steps, learning_eposides, actor_structure, critic_structure, train_dir, \
-              nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
+              nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100, retrain_nn=False):
   A = np.matrix([
   [0, 0,0,   0,0,   0,0,   0,0, 0,0, 0,0, 0,0],
   [0, 0,1,   0,0,   0,0,   0,0, 0,0, 0,0, 0,0],
@@ -71,21 +71,38 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps, learning_e
   np.fill_diagonal(R, 1)
 
   env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R, continuous=True, bad_reward=-1000)
-  args = { 'actor_lr': 0.000001,
-           'critic_lr': 0.00001,
-           'actor_structure': actor_structure,
-           'critic_structure': critic_structure, 
-           'buffer_size': 1000000,
-           'gamma': 0.999,
-           'max_episode_len': 400,
-           'max_episodes': learning_eposides,
-           'minibatch_size': 64,
-           'random_seed': 122,
-           'tau': 0.005,
-           'model_path': train_dir+"model.chkp",
-           'enable_test': nn_test, 
-           'test_episodes': test_episodes,
-           'test_episodes_len': 1200}
+  if retrain_nn:
+    args = { 'actor_lr': 0.000001,
+             'critic_lr': 0.00001,
+             'actor_structure': actor_structure,
+             'critic_structure': critic_structure, 
+             'buffer_size': 1000000,
+             'gamma': 0.999,
+             'max_episode_len': 400,
+             'max_episodes': 1000,
+             'minibatch_size': 64,
+             'random_seed': 122,
+             'tau': 0.005,
+             'model_path': train_dir+"retrained_model.chkp",
+             'enable_test': nn_test, 
+             'test_episodes': test_episodes,
+             'test_episodes_len': 1200}
+  else:
+    args = { 'actor_lr': 0.000001,
+         'critic_lr': 0.00001,
+         'actor_structure': actor_structure,
+         'critic_structure': critic_structure, 
+         'buffer_size': 1000000,
+         'gamma': 0.999,
+         'max_episode_len': 400,
+         'max_episodes': learning_eposides,
+         'minibatch_size': 64,
+         'random_seed': 122,
+         'tau': 0.005,
+         'model_path': train_dir+"model.chkp",
+         'enable_test': nn_test, 
+         'test_episodes': test_episodes,
+         'test_episodes_len': 1200}
   actor = DDPG(env, args)
 
   #################### Shield #################
@@ -110,11 +127,13 @@ if __name__ == "__main__":
   parser.add_argument('--retrain_shield', action="store_true", dest="retrain_shield")
   parser.add_argument('--shield_test', action="store_true", dest="shield_test")
   parser.add_argument('--test_episodes', action="store", dest="test_episodes", type=int)
+  parser.add_argument('--retrain_nn', action="store_true", dest="retrain_nn")
   parser_res = parser.parse_args()
   nn_test = parser_res.nn_test
   retrain_shield = parser_res.retrain_shield
   shield_test = parser_res.shield_test
   test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
+  retrain_nn = parser_res.retrain_nn
 
   carplatoon("random_search", 500, 2000, 0, [400, 300, 200], [500, 400, 300, 200], "ddpg_chkp/car-platoon/continuous/8/400300200500400300200/", 
-              nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes) 
+              nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes, retrain_nn=retrain_nn) 

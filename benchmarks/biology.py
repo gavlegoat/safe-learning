@@ -9,7 +9,7 @@ from DDPG import *
 import argparse
 
 def biology (learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir,\
-            nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
+            nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100, retrain_nn=False):
   # 10-dimension and 1-input system and 1-disturbance system
   ds = 3
   us = 2
@@ -74,21 +74,39 @@ def biology (learning_method, number_of_rollouts, simulation_steps, learning_epo
   env = PolySysEnvironment(f, f_to_str,rewardf, testf, unsafe_string, ds, us, Q, R, s_min, s_max, u_max=u_max, u_min=u_min, timestep=h)
 
   ############ Train and Test NN model ############
-  args = { 'actor_lr': 0.0001,
-       'critic_lr': 0.001,
-       'actor_structure': actor_structure,
-       'critic_structure': critic_structure, 
-       'buffer_size': 1000000,
-       'gamma': 0.99,
-       'max_episode_len': 100,
-       'max_episodes': learning_eposides,
-       'minibatch_size': 64,
-       'random_seed': 6553,
-       'tau': 0.005,
-       'model_path': train_dir+"model.chkp",
-       'enable_test': nn_test, 
-       'test_episodes': test_episodes,
-       'test_episodes_len': 1000}
+  if retrain_nn:
+    args = { 'actor_lr': 0.0001,
+             'critic_lr': 0.001,
+             'actor_structure': actor_structure,
+             'critic_structure': critic_structure, 
+             'buffer_size': 1000000,
+             'gamma': 0.99,
+             'max_episode_len': 100,
+             'max_episodes': 1000,
+             'minibatch_size': 64,
+             'random_seed': 6553,
+             'tau': 0.005,
+             'model_path': train_dir+"retrained_model.chkp",
+             'enable_test': nn_test, 
+             'test_episodes': test_episodes,
+             'test_episodes_len': 1000}
+  else:
+    args = { 'actor_lr': 0.0001,
+             'critic_lr': 0.001,
+             'actor_structure': actor_structure,
+             'critic_structure': critic_structure, 
+             'buffer_size': 1000000,
+             'gamma': 0.99,
+             'max_episode_len': 100,
+             'max_episodes': learning_eposides,
+             'minibatch_size': 64,
+             'random_seed': 6553,
+             'tau': 0.005,
+             'model_path': train_dir+"model.chkp",
+             'enable_test': nn_test, 
+             'test_episodes': test_episodes,
+             'test_episodes_len': 1000}
+
   actor =  DDPG(env, args=args)
 
   #################### Shield #################
@@ -109,10 +127,13 @@ if __name__ == "__main__":
   parser.add_argument('--retrain_shield', action="store_true", dest="retrain_shield")
   parser.add_argument('--shield_test', action="store_true", dest="shield_test")
   parser.add_argument('--test_episodes', action="store", dest="test_episodes", type=int)
+  parser.add_argument('--retrain_nn', action="store_true", dest="retrain_nn")
   parser_res = parser.parse_args()
   nn_test = parser_res.nn_test
   retrain_shield = parser_res.retrain_shield
   shield_test = parser_res.shield_test
   test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
+  retrain_nn = parser_res.retrain_nn
 
-  biology ("random_search", 200, 500, 0, [240, 200], [280, 240, 200], "ddpg_chkp/biology/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)
+  biology ("random_search", 200, 500, 0, [240, 200], [280, 240, 200], "ddpg_chkp/biology/240200280240200/", \
+    nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes, retrain_nn=retrain_nn)

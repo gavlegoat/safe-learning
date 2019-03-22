@@ -9,7 +9,7 @@ import argparse
 
 # Show that there is an invariant that can prove the policy safe
 def selfdrive(learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir, \
-            nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
+            nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100, retrain_nn=False):
   A = np.matrix([
     [ 0., 0., 1., 0.],
     [ 0., 0., 0., 1.],
@@ -41,21 +41,38 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps, learning_ep
   # Use sheild to directly learn a linear controller
   env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R, continuous=True, unsafe=True, bad_reward=-100)
 
-  args = { 'actor_lr': 0.001,
-       'critic_lr': 0.01,
-       'actor_structure': actor_structure,
-       'critic_structure': critic_structure, 
-       'buffer_size': 1000000,
-       'gamma': 0.99,
-       'max_episode_len': 1000,
-       'max_episodes': learning_eposides,
-       'minibatch_size': 64,
-       'random_seed': 6553,
-       'tau': 0.005,
-       'model_path': train_dir+"model.chkp",
-       'enable_test': nn_test, 
-       'test_episodes': test_episodes,
-       'test_episodes_len': 1000}
+  if retrain_nn:
+    args = { 'actor_lr': 0.001,
+         'critic_lr': 0.01,
+         'actor_structure': actor_structure,
+         'critic_structure': critic_structure, 
+         'buffer_size': 1000000,
+         'gamma': 0.99,
+         'max_episode_len': 1000,
+         'max_episodes': 1000,
+         'minibatch_size': 64,
+         'random_seed': 6553,
+         'tau': 0.005,
+         'model_path': train_dir+"retrained_model.chkp",
+         'enable_test': nn_test, 
+         'test_episodes': test_episodes,
+         'test_episodes_len': 1000}
+  else:
+    args = { 'actor_lr': 0.001,
+         'critic_lr': 0.01,
+         'actor_structure': actor_structure,
+         'critic_structure': critic_structure, 
+         'buffer_size': 1000000,
+         'gamma': 0.99,
+         'max_episode_len': 1000,
+         'max_episodes': learning_eposides,
+         'minibatch_size': 64,
+         'random_seed': 6553,
+         'tau': 0.005,
+         'model_path': train_dir+"model.chkp",
+         'enable_test': nn_test, 
+         'test_episodes': test_episodes,
+         'test_episodes_len': 1000}
   actor =  DDPG(env, args=args)
 
   model_path = os.path.split(args['model_path'])[0]+'/'
@@ -78,10 +95,12 @@ if __name__ == "__main__":
   parser.add_argument('--retrain_shield', action="store_true", dest="retrain_shield")
   parser.add_argument('--shield_test', action="store_true", dest="shield_test")
   parser.add_argument('--test_episodes', action="store", dest="test_episodes", type=int)
+  parser.add_argument('--retrain_nn', action="store_true", dest="retrain_nn")
   parser_res = parser.parse_args()
   nn_test = parser_res.nn_test
   retrain_shield = parser_res.retrain_shield
   shield_test = parser_res.shield_test
   test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
+  retrain_nn = parser_res.retrain_nn
 
-  selfdrive("random_search", 100, 200, 0, [64, 64], [64, 64], "ddpg_chkp/perfect_model/selfdriving/64646464/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)
+  selfdrive("random_search", 100, 200, 0, [64, 64], [64, 64], "ddpg_chkp/perfect_model/selfdriving/64646464/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes, retrain_nn=retrain_nn)

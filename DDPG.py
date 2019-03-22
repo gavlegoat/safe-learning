@@ -361,6 +361,8 @@ def train(sess, env, args, actor, critic, actor_noise, restorer, replay_buffer=N
 
 
     print 'min reward:', last_reward
+    if last_reward == env.bad_reward:
+        restorer.save(sess, args['model_path'])
     model_path = os.path.split(args['model_path'])[0]+'/'
     final_model = model_path+'final_model.chkp'
     restorer.save(sess, final_model)
