@@ -1,5 +1,7 @@
-from main import *
+import sys
+sys.path.append(".")
 
+from main import *
 from Environment import Environment
 from shield import Shield
 from DDPG import *

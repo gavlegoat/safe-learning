@@ -1,49 +1,48 @@
-from DDPG import *
+import sys
+sys.path.append(".")
+import numpy as np
 from main import *
-import os.path
+from DDPG import *
 from Environment import Environment
 from shield import Shield
 import argparse
 
-def dcmotor (learning_method, number_of_rollouts, simulation_steps, learning_eposides, critic_structure, actor_structure, train_dir,\
+def cartpole(learning_method, number_of_rollouts, simulation_steps, ddpg_learning_eposides, critic_structure, actor_structure, train_dir, \
             nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
-  A = np.matrix([[0.98965,1.4747e-08],
-    [7.4506e-09,0]
-    ])
+  l = .22+0.15 # rod length is 2l
+  m = (2*l)*(.006**2)*(3.14/4)*(7856) # rod 6 mm diameter, 44cm length, 7856 kg/m^3
+  M = .4
+  dt = .02 # 20 ms
+  g = 9.8
 
-  B = np.matrix([[128],
-    [0]
-    ])
+  A = np.matrix([[1, dt, 0, 0],[0,1, -(3*m*g*dt)/(7*M+4*m),0],[0,0,1,dt],[0,0,(3*g*(m+M)*dt)/(l*(7*M+4*m)),1]])
+  B = np.matrix([[0],[7*dt/(7*M+4*m)],[0],[-3*dt/(l*(7*M+4*m))]])
 
-  #intial state space
-  s_min = np.array([[-1.0],[-1.0]])
-  s_max = np.array([[ 1.0],[ 1.0]])
+  # amount of Gaussian noise in dynamics
+  # eq_err = 0
 
-  #sample an initial condition for system
-  x0 = np.matrix([
-                    [random.uniform(s_min[0, 0], s_max[0, 0])], 
-                    [random.uniform(s_min[1, 0], s_max[1, 0])],
-                  ])
-  print ("Sampled initial state is:\n {}".format(x0))  
+   #intial state space
+  s_min = np.array([[ -0.1],[ -0.1], [-0.05], [ -0.05]])
+  s_max = np.array([[  0.1],[  0.1], [ 0.05], [  0.05]])
 
-  Q = np.matrix("1 0 ; 0 1")
+  Q = np.matrix("1 0 0 0; 0 1 0 0 ; 0 0 1 0; 0 0 0 1")
   R = np.matrix(".0005")
 
-  x_min = np.array([[-1.5],[-1.5]])
-  x_max = np.array([[ 1.5],[ 1.5]])
-  u_min = np.array([[-1.]])
-  u_max = np.array([[ 1.]])
+  x_min = np.array([[-0.3],[-0.5],[-0.3],[-0.5]])
+  x_max = np.array([[ .3],[ .5],[.3],[.5]])
+  u_min = np.array([[-15.]])
+  u_max = np.array([[ 15.]])
 
   env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R)
 
-  args = { 'actor_lr': 0.000001,
-           'critic_lr': 0.00001,
+  args = { 'actor_lr': 0.0001,
+           'critic_lr': 0.001,
            'actor_structure': actor_structure,
            'critic_structure': critic_structure, 
            'buffer_size': 1000000,
            'gamma': 0.99,
-           'max_episode_len': 100,
-           'max_episodes': learning_eposides,
+           'max_episode_len': 1,
+           'max_episodes': ddpg_learning_eposides,
            'minibatch_size': 64,
            'random_seed': 6553,
            'tau': 0.005,
@@ -58,10 +57,16 @@ def dcmotor (learning_method, number_of_rollouts, simulation_steps, learning_epo
   linear_func_model_name = 'K.model'
   model_path = model_path+linear_func_model_name+'.npy'
 
+  def rewardf(x, Q, u, R):
+    return np.matrix([[env.reward(x, u)]])
+
+  names = {0:"cart position, meters", 1:"cart velocity", 2:"pendulum angle, radians", 3:"pendulum angle velocity"}
   shield = Shield(env, actor, model_path, force_learning=retrain_shield)
-  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, explore_mag = 0.0004, step_size = 0.0005)
+  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, rewardf=rewardf, names=names, explore_mag = 2.0, step_size = 2.0)
   if shield_test:
     shield.test_shield(test_episodes, 5000, mode="single")
+
+  actor.sess.close()
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description='Running Options')
@@ -74,5 +79,5 @@ if __name__ == "__main__":
   retrain_shield = parser_res.retrain_shield
   shield_test = parser_res.shield_test
   test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
-  
-  dcmotor("random_search", 100, 200, 0, [240,200], [280,240,200], "ddpg_chkp/dcmotor/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)
+
+  cartpole("random_search", 200, 200, 0, [1200,900], [1000,900,800], "ddpg_chkp/perfect_model/cartpole/change_l/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)

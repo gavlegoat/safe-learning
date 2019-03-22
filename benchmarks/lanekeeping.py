@@ -1,5 +1,7 @@
-from main import *
+import sys
+sys.path.append(".")
 
+from main import *
 from shield import Shield
 from Environment import PolySysEnvironment
 from DDPG import *

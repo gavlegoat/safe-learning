@@ -1,30 +1,38 @@
+import sys
+sys.path.append(".")
+
 from main import *
 from Environment import Environment
 from DDPG import *
 from shield import Shield
 import argparse
 
-def tape (learning_method, number_of_rollouts, simulation_steps,learning_eposides, critic_structure, actor_structure, train_dir,\
+def satelite (learning_method, number_of_rollouts, simulation_steps,learning_eposides, critic_structure, actor_structure, train_dir,\
             nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
-  A = np.matrix([[5.5197e-17,-3.5503e-17,6.2468e-32],
-    [2.7756e-17,0,0],
-    [0,2.7756e-17,0]
+  A = np.matrix([[2,-1],
+    [1,0]
     ])
 
-  B = np.matrix([[0.25],
-    [0],
+  B = np.matrix([[2],
     [0]
     ])
 
   #intial state space
-  s_min = np.array([[-1.0],[-1.0], [-1.0]])
-  s_max = np.array([[ 1.0],[ 1.0], [ 1.0]])
+  s_min = np.array([[-1.0],[-1.0]])
+  s_max = np.array([[ 1.0],[ 1.0]])
 
-  Q = np.matrix("1 0 0 ; 0 1 0; 0 0 1")
+  #sample an initial condition for system
+  x0 = np.matrix([
+                    [random.uniform(s_min[0, 0], s_max[0, 0])], 
+                    [random.uniform(s_min[1, 0], s_max[1, 0])],
+                  ])
+  print ("Sampled initial state is:\n {}".format(x0))  
+
+  Q = np.matrix("1 0 ; 0 1")
   R = np.matrix(".0005")
 
-  x_min = np.array([[-3],[-3],[-3]])
-  x_max = np.array([[ 3],[ 3], [3]])
+  x_min = np.array([[-1.5],[-1.5]])
+  x_max = np.array([[ 1.5],[ 1.5]])
   u_min = np.array([[-10.]])
   u_max = np.array([[ 10.]])
 
@@ -36,7 +44,7 @@ def tape (learning_method, number_of_rollouts, simulation_steps,learning_eposide
            'critic_structure': critic_structure, 
            'buffer_size': 1000000,
            'gamma': 0.99,
-           'max_episode_len': 1,
+           'max_episode_len': 100,
            'max_episodes': learning_eposides,
            'minibatch_size': 64,
            'random_seed': 6553,
@@ -52,9 +60,9 @@ def tape (learning_method, number_of_rollouts, simulation_steps,learning_eposide
   model_path = os.path.split(args['model_path'])[0]+'/'
   linear_func_model_name = 'K.model'
   model_path = model_path+linear_func_model_name+'.npy'
-
   shield = Shield(env, actor, model_path, force_learning=retrain_shield, debug=False)
-  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=0, explore_mag = 0.5, step_size = 0.5)
+
+  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=0, explore_mag = 0.03, step_size = 0.04)
   if shield_test:
     shield.test_shield(test_episodes, 500, mode="single")
 
@@ -70,4 +78,4 @@ if __name__ == "__main__":
   shield_test = parser_res.shield_test
   test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
 
-  tape("random_search", 100, 50, 0, [240,200], [280,240,200], "ddpg_chkp/tape/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)
+  satelite("random_search", 200, 100, 0, [240,200], [280,240,200], "ddpg_chkp/satelite/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)

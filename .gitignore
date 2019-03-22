@@ -10,3 +10,4 @@ dist
 *.egg-info
 .pytest_cache
 venv*
+*.ji

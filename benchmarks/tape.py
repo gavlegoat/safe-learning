@@ -1,52 +1,37 @@
-# -*- coding: utf-8 -*-
-# -------------------------------
-# Author: Zikang Xiong
-# Email: zikangxiong@gmail.com
-# Date:   2018-10-23 17:04:25
-# Last Modified by:   Zikang Xiong
-# Last Modified time: 2019-02-22 16:44:32
-# -------------------------------
-from main import *
-import numpy as np
-from DDPG import *
+import sys
+sys.path.append(".")
 
-from shield import Shield
+from main import *
 from Environment import Environment
+from DDPG import *
+from shield import Shield
 import argparse
 
-def pendulum(learning_eposides, critic_structure, actor_structure, train_dir, learning_method, number_of_rollouts, simulation_steps,\
+def tape (learning_method, number_of_rollouts, simulation_steps,learning_eposides, critic_structure, actor_structure, train_dir,\
             nn_test=False, retrain_shield=False, shield_test=False, test_episodes=100):
-  
-  m = 1.
-  l = 1.2
-  g = 10.
-
-  #Dynamics that are continuous
-  A = np.matrix([
-    [ 0., 1.],
-    [g/l, 0.]
-    ])
-  B = np.matrix([
-    [          0.],
-    [1./(m*l**2.)]
+  A = np.matrix([[5.5197e-17,-3.5503e-17,6.2468e-32],
+    [2.7756e-17,0,0],
+    [0,2.7756e-17,0]
     ])
 
+  B = np.matrix([[0.25],
+    [0],
+    [0]
+    ])
 
   #intial state space
-  s_min = np.array([[-0.35],[-0.35]])
-  s_max = np.array([[ 0.35],[ 0.35]])
+  s_min = np.array([[-1.0],[-1.0], [-1.0]])
+  s_max = np.array([[ 1.0],[ 1.0], [ 1.0]])
 
-  #reward function
-  Q = np.matrix([[1., 0.],[0., 1.]])
-  R = np.matrix([[.005]])
+  Q = np.matrix("1 0 0 ; 0 1 0; 0 0 1")
+  R = np.matrix(".0005")
 
-  #safety constraint
-  x_min = np.array([[-0.5],[-0.5]])
-  x_max = np.array([[ 0.5],[ 0.5]])
-  u_min = np.array([[-15.]])
-  u_max = np.array([[ 15.]])
+  x_min = np.array([[-3],[-3],[-3]])
+  x_max = np.array([[ 3],[ 3], [3]])
+  u_min = np.array([[-10.]])
+  u_max = np.array([[ 10.]])
 
-  env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R, continuous=True)
+  env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R)
 
   args = { 'actor_lr': 0.0001,
            'critic_lr': 0.001,
@@ -62,7 +47,7 @@ def pendulum(learning_eposides, critic_structure, actor_structure, train_dir, le
            'model_path': train_dir+"model.chkp",
            'enable_test': nn_test, 
            'test_episodes': test_episodes,
-           'test_episodes_len': 3000}
+           'test_episodes_len': 500}
 
   actor = DDPG(env, args)
   
@@ -71,15 +56,10 @@ def pendulum(learning_eposides, critic_structure, actor_structure, train_dir, le
   linear_func_model_name = 'K.model'
   model_path = model_path+linear_func_model_name+'.npy'
 
-  def rewardf(x, Q, u, R):
-    return env.reward(x, u)
-
   shield = Shield(env, actor, model_path, force_learning=retrain_shield, debug=False)
-  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, rewardf=rewardf, eq_err=1e-2, explore_mag = 0.3, step_size = 0.3)
+  shield.train_shield(learning_method, number_of_rollouts, simulation_steps, eq_err=0, explore_mag = 0.5, step_size = 0.5)
   if shield_test:
-    shield.test_shield(test_episodes, 3000, mode="single")
-
-  actor.sess.close()
+    shield.test_shield(test_episodes, 500, mode="single")
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description='Running Options')
@@ -93,4 +73,4 @@ if __name__ == "__main__":
   shield_test = parser_res.shield_test
   test_episodes = parser_res.test_episodes if parser_res.test_episodes is not None else 100
 
-  pendulum(0, [1200,900], [1000,900,800], "ddpg_chkp/perfect_model/pendulum/change_l/", "random_search", 100, 2000, nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes) 
+  tape("random_search", 100, 50, 0, [240,200], [280,240,200], "ddpg_chkp/tape/240200280240200/", nn_test=nn_test, retrain_shield=retrain_shield, shield_test=shield_test, test_episodes=test_episodes)

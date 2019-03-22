@@ -1,3 +1,6 @@
+import sys
+sys.path.append(".")
+
 import numpy as np
 from DDPG import *
 from main import *
