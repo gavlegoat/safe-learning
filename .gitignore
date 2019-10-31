@@ -11,3 +11,5 @@ dist
 .pytest_cache
 venv*
 *.ji
+*.log
+*.chkp.*

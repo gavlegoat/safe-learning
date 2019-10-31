@@ -737,8 +737,8 @@ _lib.Z3_parse_smtlib2_file.restype = Ast
 _lib.Z3_parse_smtlib2_file.argtypes = [ContextObj, ctypes.c_char_p, ctypes.c_uint, ctypes.POINTER(Symbol), ctypes.POINTER(Sort), ctypes.c_uint, ctypes.POINTER(Symbol), ctypes.POINTER(FuncDecl)]
 _lib.Z3_eval_smtlib2_string.restype = ctypes.c_char_p
 _lib.Z3_eval_smtlib2_string.argtypes = [ContextObj, ctypes.c_char_p]
-_lib.Z3_get_parser_error.restype = ctypes.c_char_p
-_lib.Z3_get_parser_error.argtypes = [ContextObj]
+#_lib.Z3_get_parser_error.restype = ctypes.c_char_p
+#_lib.Z3_get_parser_error.argtypes = [ContextObj]
 _lib.Z3_get_error_code.restype = ctypes.c_uint
 _lib.Z3_get_error_code.argtypes = [ContextObj]
 _lib.Z3_set_error.argtypes = [ContextObj, ctypes.c_uint]
@@ -859,8 +859,8 @@ _lib.Z3_apply_result_get_num_subgoals.restype = ctypes.c_uint
 _lib.Z3_apply_result_get_num_subgoals.argtypes = [ContextObj, ApplyResultObj]
 _lib.Z3_apply_result_get_subgoal.restype = GoalObj
 _lib.Z3_apply_result_get_subgoal.argtypes = [ContextObj, ApplyResultObj, ctypes.c_uint]
-_lib.Z3_apply_result_convert_model.restype = Model
-_lib.Z3_apply_result_convert_model.argtypes = [ContextObj, ApplyResultObj, ctypes.c_uint, Model]
+#_lib.Z3_apply_result_convert_model.restype = Model
+#_lib.Z3_apply_result_convert_model.argtypes = [ContextObj, ApplyResultObj, ctypes.c_uint, Model]
 _lib.Z3_mk_solver.restype = SolverObj
 _lib.Z3_mk_solver.argtypes = [ContextObj]
 _lib.Z3_mk_simple_solver.restype = SolverObj
@@ -1083,8 +1083,8 @@ _lib.Z3_fixedpoint_from_string.restype = AstVectorObj
 _lib.Z3_fixedpoint_from_string.argtypes = [ContextObj, FixedpointObj, ctypes.c_char_p]
 _lib.Z3_fixedpoint_from_file.restype = AstVectorObj
 _lib.Z3_fixedpoint_from_file.argtypes = [ContextObj, FixedpointObj, ctypes.c_char_p]
-_lib.Z3_fixedpoint_push.argtypes = [ContextObj, FixedpointObj]
-_lib.Z3_fixedpoint_pop.argtypes = [ContextObj, FixedpointObj]
+#_lib.Z3_fixedpoint_push.argtypes = [ContextObj, FixedpointObj]
+#_lib.Z3_fixedpoint_pop.argtypes = [ContextObj, FixedpointObj]
 _lib.Z3_mk_optimize.restype = OptimizeObj
 _lib.Z3_mk_optimize.argtypes = [ContextObj]
 _lib.Z3_optimize_inc_ref.argtypes = [ContextObj, OptimizeObj]
@@ -1127,21 +1127,21 @@ _lib.Z3_optimize_get_assertions.restype = AstVectorObj
 _lib.Z3_optimize_get_assertions.argtypes = [ContextObj, OptimizeObj]
 _lib.Z3_optimize_get_objectives.restype = AstVectorObj
 _lib.Z3_optimize_get_objectives.argtypes = [ContextObj, OptimizeObj]
-_lib.Z3_mk_interpolant.restype = Ast
-_lib.Z3_mk_interpolant.argtypes = [ContextObj, Ast]
-_lib.Z3_mk_interpolation_context.restype = ContextObj
-_lib.Z3_mk_interpolation_context.argtypes = [Config]
-_lib.Z3_get_interpolant.restype = AstVectorObj
-_lib.Z3_get_interpolant.argtypes = [ContextObj, Ast, Ast, Params]
-_lib.Z3_compute_interpolant.restype = ctypes.c_int
-_lib.Z3_compute_interpolant.argtypes = [ContextObj, Ast, Params, ctypes.POINTER(AstVectorObj), ctypes.POINTER(Model)]
-_lib.Z3_interpolation_profile.restype = ctypes.c_char_p
-_lib.Z3_interpolation_profile.argtypes = [ContextObj]
-_lib.Z3_read_interpolation_problem.restype = ctypes.c_int
-_lib.Z3_read_interpolation_problem.argtypes = [ContextObj, ctypes.POINTER(ctypes.c_uint), Ast, ctypes.c_uint, ctypes.c_char_p, ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(ctypes.c_uint), Ast]
-_lib.Z3_check_interpolant.restype = ctypes.c_int
-_lib.Z3_check_interpolant.argtypes = [ContextObj, ctypes.c_uint, ctypes.POINTER(Ast), ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(Ast), ctypes.POINTER(ctypes.c_char_p), ctypes.c_uint, ctypes.POINTER(Ast)]
-_lib.Z3_write_interpolation_problem.argtypes = [ContextObj, ctypes.c_uint, ctypes.POINTER(Ast), ctypes.POINTER(ctypes.c_uint), ctypes.c_char_p, ctypes.c_uint, ctypes.POINTER(Ast)]
+#_lib.Z3_mk_interpolant.restype = Ast
+#_lib.Z3_mk_interpolant.argtypes = [ContextObj, Ast]
+#_lib.Z3_mk_interpolation_context.restype = ContextObj
+#_lib.Z3_mk_interpolation_context.argtypes = [Config]
+#_lib.Z3_get_interpolant.restype = AstVectorObj
+#_lib.Z3_get_interpolant.argtypes = [ContextObj, Ast, Ast, Params]
+#_lib.Z3_compute_interpolant.restype = ctypes.c_int
+#_lib.Z3_compute_interpolant.argtypes = [ContextObj, Ast, Params, ctypes.POINTER(AstVectorObj), ctypes.POINTER(Model)]
+#_lib.Z3_interpolation_profile.restype = ctypes.c_char_p
+#_lib.Z3_interpolation_profile.argtypes = [ContextObj]
+#_lib.Z3_read_interpolation_problem.restype = ctypes.c_int
+#_lib.Z3_read_interpolation_problem.argtypes = [ContextObj, ctypes.POINTER(ctypes.c_uint), Ast, ctypes.c_uint, ctypes.c_char_p, ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(ctypes.c_uint), Ast]
+#_lib.Z3_check_interpolant.restype = ctypes.c_int
+#_lib.Z3_check_interpolant.argtypes = [ContextObj, ctypes.c_uint, ctypes.POINTER(Ast), ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(Ast), ctypes.POINTER(ctypes.c_char_p), ctypes.c_uint, ctypes.POINTER(Ast)]
+#_lib.Z3_write_interpolation_problem.argtypes = [ContextObj, ctypes.c_uint, ctypes.POINTER(Ast), ctypes.POINTER(ctypes.c_uint), ctypes.c_char_p, ctypes.c_uint, ctypes.POINTER(Ast)]
 _lib.Z3_mk_fpa_rounding_mode_sort.restype = Sort
 _lib.Z3_mk_fpa_rounding_mode_sort.argtypes = [ContextObj]
 _lib.Z3_mk_fpa_round_nearest_ties_to_even.restype = Ast
@@ -2998,10 +2998,10 @@ def Z3_eval_smtlib2_string(a0, a1, _elems=Elementaries(_lib.Z3_eval_smtlib2_stri
   _elems.Check(a0)
   return _to_pystr(r)
 
-def Z3_get_parser_error(a0, _elems=Elementaries(_lib.Z3_get_parser_error)):
-  r = _elems.f(a0)
-  _elems.Check(a0)
-  return _to_pystr(r)
+#def Z3_get_parser_error(a0, _elems=Elementaries(_lib.Z3_get_parser_error)):
+#  r = _elems.f(a0)
+#  _elems.Check(a0)
+#  return _to_pystr(r)
 
 def Z3_get_error_code(a0, _elems=Elementaries(_lib.Z3_get_error_code)):
   r = _elems.f(a0)
@@ -3320,10 +3320,10 @@ def Z3_apply_result_get_subgoal(a0, a1, a2, _elems=Elementaries(_lib.Z3_apply_re
   _elems.Check(a0)
   return r
 
-def Z3_apply_result_convert_model(a0, a1, a2, a3, _elems=Elementaries(_lib.Z3_apply_result_convert_model)):
-  r = _elems.f(a0, a1, a2, a3)
-  _elems.Check(a0)
-  return r
+#def Z3_apply_result_convert_model(a0, a1, a2, a3, _elems=Elementaries(_lib.Z3_apply_result_convert_model)):
+#  r = _elems.f(a0, a1, a2, a3)
+#  _elems.Check(a0)
+#  return r
 
 def Z3_mk_solver(a0, _elems=Elementaries(_lib.Z3_mk_solver)):
   r = _elems.f(a0)
@@ -3930,13 +3930,13 @@ def Z3_fixedpoint_from_file(a0, a1, a2, _elems=Elementaries(_lib.Z3_fixedpoint_f
   _elems.Check(a0)
   return r
 
-def Z3_fixedpoint_push(a0, a1, _elems=Elementaries(_lib.Z3_fixedpoint_push)):
-  _elems.f(a0, a1)
-  _elems.Check(a0)
-
-def Z3_fixedpoint_pop(a0, a1, _elems=Elementaries(_lib.Z3_fixedpoint_pop)):
-  _elems.f(a0, a1)
-  _elems.Check(a0)
+#def Z3_fixedpoint_push(a0, a1, _elems=Elementaries(_lib.Z3_fixedpoint_push)):
+#  _elems.f(a0, a1)
+#  _elems.Check(a0)
+#
+#def Z3_fixedpoint_pop(a0, a1, _elems=Elementaries(_lib.Z3_fixedpoint_pop)):
+#  _elems.f(a0, a1)
+#  _elems.Check(a0)
 
 def Z3_mk_optimize(a0, _elems=Elementaries(_lib.Z3_mk_optimize)):
   r = _elems.f(a0)
@@ -4055,43 +4055,43 @@ def Z3_optimize_get_objectives(a0, a1, _elems=Elementaries(_lib.Z3_optimize_get_
   _elems.Check(a0)
   return r
 
-def Z3_mk_interpolant(a0, a1, _elems=Elementaries(_lib.Z3_mk_interpolant)):
-  r = _elems.f(a0, a1)
-  _elems.Check(a0)
-  return r
-
-def Z3_mk_interpolation_context(a0, _elems=Elementaries(_lib.Z3_mk_interpolation_context)):
-  r = _elems.f(a0)
-  return r
-
-def Z3_get_interpolant(a0, a1, a2, a3, _elems=Elementaries(_lib.Z3_get_interpolant)):
-  r = _elems.f(a0, a1, a2, a3)
-  _elems.Check(a0)
-  return r
-
-def Z3_compute_interpolant(a0, a1, a2, a3, a4, _elems=Elementaries(_lib.Z3_compute_interpolant)):
-  r = _elems.f(a0, a1, a2, a3, a4)
-  _elems.Check(a0)
-  return r
-
-def Z3_interpolation_profile(a0, _elems=Elementaries(_lib.Z3_interpolation_profile)):
-  r = _elems.f(a0)
-  _elems.Check(a0)
-  return _to_pystr(r)
-
-def Z3_read_interpolation_problem(a0, a1, a2, a3, a4, a5, a6, a7, _elems=Elementaries(_lib.Z3_read_interpolation_problem)):
-  r = _elems.f(a0, a1, a2, a3, _to_ascii(a4), _to_ascii(a5), a6, a7)
-  _elems.Check(a0)
-  return r
-
-def Z3_check_interpolant(a0, a1, a2, a3, a4, a5, a6, a7, _elems=Elementaries(_lib.Z3_check_interpolant)):
-  r = _elems.f(a0, a1, a2, a3, a4, _to_ascii(a5), a6, a7)
-  _elems.Check(a0)
-  return r
-
-def Z3_write_interpolation_problem(a0, a1, a2, a3, a4, a5, a6, _elems=Elementaries(_lib.Z3_write_interpolation_problem)):
-  _elems.f(a0, a1, a2, a3, _to_ascii(a4), a5, a6)
-  _elems.Check(a0)
+#def Z3_mk_interpolant(a0, a1, _elems=Elementaries(_lib.Z3_mk_interpolant)):
+#  r = _elems.f(a0, a1)
+#  _elems.Check(a0)
+#  return r
+#
+#def Z3_mk_interpolation_context(a0, _elems=Elementaries(_lib.Z3_mk_interpolation_context)):
+#  r = _elems.f(a0)
+#  return r
+#
+#def Z3_get_interpolant(a0, a1, a2, a3, _elems=Elementaries(_lib.Z3_get_interpolant)):
+#  r = _elems.f(a0, a1, a2, a3)
+#  _elems.Check(a0)
+#  return r
+#
+#def Z3_compute_interpolant(a0, a1, a2, a3, a4, _elems=Elementaries(_lib.Z3_compute_interpolant)):
+#  r = _elems.f(a0, a1, a2, a3, a4)
+#  _elems.Check(a0)
+#  return r
+#
+#def Z3_interpolation_profile(a0, _elems=Elementaries(_lib.Z3_interpolation_profile)):
+#  r = _elems.f(a0)
+#  _elems.Check(a0)
+#  return _to_pystr(r)
+#
+#def Z3_read_interpolation_problem(a0, a1, a2, a3, a4, a5, a6, a7, _elems=Elementaries(_lib.Z3_read_interpolation_problem)):
+#  r = _elems.f(a0, a1, a2, a3, _to_ascii(a4), _to_ascii(a5), a6, a7)
+#  _elems.Check(a0)
+#  return r
+#
+#def Z3_check_interpolant(a0, a1, a2, a3, a4, a5, a6, a7, _elems=Elementaries(_lib.Z3_check_interpolant)):
+#  r = _elems.f(a0, a1, a2, a3, a4, _to_ascii(a5), a6, a7)
+#  _elems.Check(a0)
+#  return r
+#
+#def Z3_write_interpolation_problem(a0, a1, a2, a3, a4, a5, a6, _elems=Elementaries(_lib.Z3_write_interpolation_problem)):
+#  _elems.f(a0, a1, a2, a3, _to_ascii(a4), a5, a6)
+#  _elems.Check(a0)
 
 def Z3_mk_fpa_rounding_mode_sort(a0, _elems=Elementaries(_lib.Z3_mk_fpa_rounding_mode_sort)):
   r = _elems.f(a0)

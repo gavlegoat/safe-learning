@@ -1,2 +1,2 @@
-model_checkpoint_path: "final_model.chkp"
-all_model_checkpoint_paths: "final_model.chkp"
+model_checkpoint_path: "retrained_model.chkp"
+all_model_checkpoint_paths: "retrained_model.chkp"
