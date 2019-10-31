@@ -13,3 +13,4 @@ venv*
 *.ji
 *.log
 *.chkp.*
+ddpg_chkp/

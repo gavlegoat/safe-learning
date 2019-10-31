@@ -1,2 +1,0 @@
-model_checkpoint_path: "retrained_model.chkp"
-all_model_checkpoint_paths: "retrained_model.chkp"
