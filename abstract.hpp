@@ -10,6 +10,7 @@
 #include <ap_disjunction.h>
 #include <t1p.h>
 #include <box.h>
+#include <pk.h>
 
 #include <cstdlib>
 #include <vector>
@@ -31,6 +32,7 @@ class ArithExpr {
     ArithExpr(ap_texpr0_t* expr);
     ArithExpr(const ArithExpr& other);
     ArithExpr(ArithExpr&& other);
+    ArithExpr(const std::string& str);
     ~ArithExpr();
     ArithExpr& operator=(const ArithExpr& other);
     ArithExpr& operator=(ArithExpr&& other);
@@ -39,6 +41,8 @@ class ArithExpr {
     ArithExpr operator-(const ArithExpr& other) const;
     ArithExpr operator*(const ArithExpr& other) const;
     ArithExpr operator/(const ArithExpr& other) const;
+    // Be careful about the precedence of ^. C++ uses this operator for XOR so
+    // it has much lower precedence than you would expect for a power operator.
     ArithExpr operator^(int power) const;
 
     inline ap_texpr0_t* get_texpr() const {
@@ -59,7 +63,7 @@ class LinCons {
     double distance_from(const Eigen::VectorXd& x) const;
 };
 
-enum class AbstractDomain { ZONOTOPE, INTERVAL };
+enum class AbstractDomain { ZONOTOPE, INTERVAL, POLYHEDRA };
 
 /**
  * An abstract value over some underlying Apron value. This is just a
@@ -143,6 +147,8 @@ class AbstractVal {
 
     virtual std::unique_ptr<AbstractVal> widen(const AbstractVal& other) const;
 
+    virtual bool operator==(const AbstractVal& other) const;
+
     /**
      * Create an abstract value by adding each dimension of b to this and
      * maintain the relations among variables in b.
@@ -154,6 +160,10 @@ class AbstractVal {
 
     inline bool is_bottom() const {
       return ap_abstract0_is_bottom(man, value);
+    }
+
+    inline bool is_top() const {
+      return ap_abstract0_is_top(man, value);
     }
 
     bool contains_point(const Eigen::VectorXd& x) const;
@@ -169,6 +179,8 @@ class AbstractVal {
     }
 
     virtual std::unique_ptr<AbstractVal> clone() const;
+
+    LinCons get_lincons() const;
 
     //virtual double distance_to_point(const Eigen::VectorXd& x) const;
     void print(FILE* out) const;

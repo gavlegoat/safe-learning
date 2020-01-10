@@ -10,7 +10,8 @@ import argparse
 def tape(learning_method, number_of_rollouts, simulation_steps,
         learning_episodes, critic_structure, actor_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
-        test_episodes=100, retrain_nn=False, safe_training=False, shields=1):
+        test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
+        episode_len=100):
 
     A = np.matrix([
       [5.5197e-17,-3.5503e-17,6.2468e-32],
@@ -48,7 +49,7 @@ def tape(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure, 
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': 1000,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -64,7 +65,7 @@ def tape(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure, 
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': learning_episodes,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -102,6 +103,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -112,9 +114,10 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     tape("random_search", 100, 50, 0, [240,200], [280,240,200],
             "ddpg_chkp/tape/240200280240200/", nn_test=nn_test,
             retrain_shield=retrain_shield, shield_test=shield_test,
             test_episodes=test_episodes, retrain_nn=retrain_nn,
-            safe_training=safe_training, shields=shields)
+            safe_training=safe_training, shields=shields, episode_len=ep_len)

@@ -11,7 +11,7 @@ import argparse
 def pendulum(learning_eposides, critic_structure, actor_structure, train_dir,
         learning_method, number_of_rollouts, simulation_steps, nn_test=False,
         retrain_shield=False, shield_test=False, test_episodes=100,
-        retrain_nn=False, safe_training=False, shields=1):
+        retrain_nn=False, safe_training=False, shields=1, episode_len=500):
 
     m = 1.17
     l = 1.
@@ -55,7 +55,7 @@ def pendulum(learning_eposides, critic_structure, actor_structure, train_dir,
                  'critic_structure': critic_structure, 
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 500,
+                 'max_episode_len': episode_len,
                  'max_episodes': 1000,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -71,7 +71,7 @@ def pendulum(learning_eposides, critic_structure, actor_structure, train_dir,
                  'critic_structure': critic_structure, 
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 500,
+                 'max_episode_len': episode_len,
                  'max_episodes': learning_eposides,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -81,8 +81,19 @@ def pendulum(learning_eposides, critic_structure, actor_structure, train_dir,
                  'test_episodes': test_episodes,
                  'test_episodes_len': 3800}
 
-    actor = DDPG(env, args, rewardf=safety_reward, safe_training=safe_training,
-            shields=shields)
+    Ks = [np.matrix([[-m * l * g, 0]])]
+    invs = [(np.matrix([[-1, 0], [1, 0], [0, -1], [0, 1]]),
+        (np.matrix([[0.35], [0.35], [0.35], [0.35]])))]
+    covers = [(invs[0][0], invs[0][1],
+        np.matrix([[-0.35], [-0.35], [-0.35], [-0.35]]),
+        np.matrix([[0.35], [0.35], [0.35], [0.35]]))]
+
+    initial_shield = Shield(env, K_list=Ks, inv_list=invs, cover_list=covers,
+            bound=episode_len)
+
+    actor, shield = DDPG(env, args, rewardf=safety_reward,
+            safe_training=safe_training,
+            shields=shields, initial_shield=initial_shield)
 
     #################### Shield #################
     model_path = os.path.split(args['model_path'])[0]+'/'
@@ -92,12 +103,8 @@ def pendulum(learning_eposides, critic_structure, actor_structure, train_dir,
     def rewardf(x, Q, u, R):
         return np.matrix([[env.reward(x, u)]])
 
-    shield = Shield(env, actor, model_path, force_learning=retrain_shield,
-            debug=False)
-    shield.train_shield(learning_method, number_of_rollouts, simulation_steps,
-            rewardf=rewardf, eq_err=1e-2, explore_mag=0.3, step_size=0.3)
     if shield_test:
-        shield.test_shield(test_episodes, 3800, mode="single")
+        shield.test_shield(actor, test_episodes, 3800, mode="single")
 
     actor.sess.close()
 
@@ -114,6 +121,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -124,10 +132,11 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     pendulum(0, [1200,900], [1000,900,800],
             "ddpg_chkp/perfect_model/pendulum/change_m/", "random_search",
             100, 2000, nn_test=nn_test, retrain_shield=retrain_shield,
             shield_test=shield_test, test_episodes=test_episodes,
             retrain_nn=retrain_nn, safe_training=safe_training,
-            shields=shields)
+            shields=shields, episode_len=ep_len)

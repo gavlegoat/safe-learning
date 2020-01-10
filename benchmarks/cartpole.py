@@ -5,13 +5,15 @@ from main import *
 from DDPG import *
 from Environment import Environment
 from shield import Shield
+import scipy
 
 import argparse
 
 def cartpole(learning_method, number_of_rollouts, simulation_steps,
         learning_eposides, critic_structure, actor_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
-        test_episodes=100, retrain_nn=False, safe_training=False, shields=1):
+        test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
+        episode_len=100):
     A = np.matrix([
     [0, 1,     0, 0],
     [0, 0, 0.716, 0],
@@ -50,8 +52,8 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
-                 'max_episodes': 1000,
+                 'max_episode_len': episode_len,
+                 'max_episodes': 1000,   # Originally 1000
                  'minibatch_size': 64,
                  'random_seed': 6553,
                  'tau': 0.005,
@@ -66,7 +68,7 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': learning_eposides,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -76,15 +78,39 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
                  'test_episodes': test_episodes,
                  'test_episodes_len': 5000}
 
-    result_list = [
-            (np.array([0, 0, 0, 0]),
-             np.array([0.05, 0.1, 0.05, 0.05]),
-             "x3^2-0.09",
-             np.matrix([[-100, 0, 0, 0]])
-            )]
-    initial_shield = Shield(env, None, resultList=result_list)
+    #P = scipy.linalg.solve_continuous_are(A, B, Q, R)
+    #Ks = [-np.linalg.inv(R) * B.T * P]
+    Ks = [np.matrix([[-3, 0, 0, 0]]), np.matrix([[0, 0, -3, 0]])]
+    mat = np.matrix(np.zeros((9, 4)))
+    bias = np.matrix(np.zeros((9, 1)))
+    lower = np.matrix(np.zeros((4, 1)))
+    upper = np.matrix(np.zeros((4, 1)))
+    for i in range(4):
+        mat[2*i,i] = 1
+        mat[2*i+1,i] = -1
+        bias[2*i,0] = s_max[i,0]
+        bias[2*i+1,0] = s_max[i,0]
+        lower[i,0] = s_min[i,0]
+        upper[i,0] = s_max[i,0]
+    mat1 = mat
+    mat2 = np.matrix(np.copy(mat))
+    for i in range(4):
+        mat1[8,i] = 0
+        mat2[8,i] = 0
+    mat1[8,0] = -1
+    mat1[8,2] = 1
+    mat2[8,0] = 1
+    mat2[8,2] = -1
+    bias1 = bias
+    bias2 = np.matrix(np.copy(bias))
+    bias1[8,0] = 0
+    bias2[8,0] = 0
+    invs = [(mat1, bias1), (mat2, bias2)]
+    covers = [(mat1, bias1, lower, upper), (mat2, bias2, lower, upper)]
+    initial_shield = Shield(env, K_list=Ks, inv_list=invs, cover_list=covers,
+            bound=episode_len)
 
-    actor = DDPG(env, args=args, rewardf=safety_reward,
+    actor, shield = DDPG(env, args=args, rewardf=safety_reward,
             safe_training=safe_training, shields=shields,
             initial_shield=initial_shield)
 
@@ -93,12 +119,8 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
     linear_func_model_name = 'K.model'
     model_path = model_path+linear_func_model_name+'.npy'
 
-    shield = Shield(env, actor, model_path, debug=False,
-            force_learning=retrain_shield)
-    shield.train_shield(learning_method, number_of_rollouts, simulation_steps,
-            eq_err=0, explore_mag=1.0, step_size=1.0)
     if shield_test:
-        shield.test_shield(test_episodes, 5000, mode="single")
+        shield.test_shield(actor, test_episodes, 5000, mode="single")
 
     actor.sess.close()
 
@@ -115,6 +137,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -125,9 +148,11 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     cartpole("random_search", 100, 200, 0, [300, 200], [300, 250, 200],
             "ddpg_chkp/cartpole/continuous/300200300250200/", nn_test=nn_test,
             retrain_shield=retrain_shield, shield_test=shield_test,
             test_episodes=test_episodes, retrain_nn=retrain_nn,
-            safe_training=safe_training, shields=shields)
+            safe_training=safe_training, shields=shields,
+            episode_len=ep_len)

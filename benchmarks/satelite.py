@@ -1,5 +1,4 @@
 import sys
-sys.path.append(".")
 
 from main import *
 from Environment import Environment
@@ -11,7 +10,8 @@ from pympc.geometry.polyhedron import Polyhedron
 def satelite(learning_method, number_of_rollouts, simulation_steps,
         critic_structure, actor_structure, train_dir, nn_test=False,
         retrain_shield=False, shield_test=False, test_episodes=100,
-        retrain_nn=False, safe_training=False, shields=1):
+        retrain_nn=False, safe_training=False, shields=1,
+        episode_len=100):
     A = np.matrix([[2,-1],
       [1,0]
       ])
@@ -53,7 +53,7 @@ def satelite(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': 1000,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -69,7 +69,7 @@ def satelite(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': 0,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -79,33 +79,25 @@ def satelite(learning_method, number_of_rollouts, simulation_steps,
                  'test_episodes': test_episodes,
                  'test_episodes_len': 500}
 
-    result_list = [
-            (np.array([0, 0]),
-             np.array([0.15, 0.15]),
-             Polyhedron(
-                 np.matrix([[ 1,  0],
-                            [-1,  0],
-                            [ 0,  1],
-                            [ 0, -1]]),
-                 np.matrix([[1.5], [1.5], [1.5], [1.5]])),
-             np.matrix([[-1, 0.5]])
-            )]
-    initial_shield = Shield(env, None, resultList=result_list)
+    Ks = [np.matrix([[-1, 0.5]])]
+    invs = [(np.matrix([[0, 1], [0, -1], [1, 0], [-1, 0]]),
+        np.matrix([[1.], [1.], [1.], [1.]]))]
+    covers = [(invs[0][0], invs[0][1], np.matrix([[-1], [-1]]),
+        np.matrix([[1], [1]]))]
+    initial_shield = Shield(env, K_list=Ks, inv_list=invs, cover_list=covers,
+            bound=episode_len)
 
-    actor = DDPG(env, args, rewardf=safety_reward, safe_training=safe_training,
+    actor, shield = DDPG(env, args, rewardf=safety_reward,
+            safe_training=safe_training,
             shields=shields, initial_shield=initial_shield)
 
     #################### Shield #################
     model_path = os.path.split(args['model_path'])[0]+'/'
     linear_func_model_name = 'K.model'
     model_path = model_path+linear_func_model_name+'.npy'
-    shield = Shield(env, actor, model_path, force_learning=retrain_shield,
-            debug=False)
 
-    shield.train_shield(learning_method, number_of_rollouts, simulation_steps,
-            eq_err=0, explore_mag=0.03, step_size=0.04)
     if shield_test:
-      shield.test_shield(test_episodes, 500, mode="single")
+      shield.test_shield(actor, test_episodes, 500)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Running Options')
@@ -120,6 +112,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -130,9 +123,10 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     satelite("random_search", 200, 100, [240,200], [280,240,200],
       "ddpg_chkp/satelite/240200280240200/", nn_test=nn_test,
       retrain_shield=retrain_shield, shield_test=shield_test,
       test_episodes=test_episodes, retrain_nn=retrain_nn,
-      safe_training=safe_training, shields=shields)
+      safe_training=safe_training, shields=shields, episode_len=ep_len)

@@ -124,6 +124,9 @@ inline ap_manager_t* get_manager_from_domain(AbstractDomain dom, size_t size) {
     case AbstractDomain::INTERVAL:
       base = box_manager_alloc();
       break;
+    case AbstractDomain::POLYHEDRA:
+      base = pk_manager_alloc(false);
+      break;
     default:
       throw std::runtime_error("Unrecognized domain in get_manager");
   }
@@ -460,6 +463,10 @@ std::unique_ptr<AbstractVal> AbstractVal::widen(
   return this->make_new(res);
 }
 
+bool AbstractVal::operator==(const AbstractVal& other) const {
+  return ap_abstract0_is_eq(man, value, other.get_value());
+}
+
 std::unique_ptr<AbstractVal> AbstractVal::append(const AbstractVal& b) const {
   int n1 = b.dims();
   int n2 = this->dims();
@@ -476,7 +483,7 @@ std::unique_ptr<AbstractVal> AbstractVal::append(const AbstractVal& b) const {
   // Our second attempt was to convert both abstract values to arrays of linear
   // constraints, append the two arrays, then create a new value which
   // satisfies all of the resulting constraints. This runs into a very strange
-  // use-after-free bug which I haven't been able to track down
+  // use-after-free bug which I haven't been able to track down.
   //
   // The current strategy is to convert only b to an array of linear
   // constraints and to meet this with the resulting array.
@@ -604,6 +611,55 @@ Eigen::VectorXd AbstractVal::get_contained_point() const {
 
 std::unique_ptr<AbstractVal> AbstractVal::clone() const {
   return std::make_unique<AbstractVal>(man, ap_abstract0_copy(man, value));
+}
+
+LinCons AbstractVal::get_lincons() const {
+  ap_lincons0_array_t res = ap_abstract0_to_lincons_array(man, value);
+  int d = dims();
+  std::vector<Eigen::VectorXd> ws;
+  std::vector<double> bs;
+  for (int i = 0; i < res.size; i++) {
+    Eigen::VectorXd r(d);
+    ap_linexpr0_t* exp = res.p[i].linexpr0;
+    for (int j = 0; j < d; j++) {
+      ap_coeff_t* c = ap_linexpr0_coeffref(exp, j);
+      if (c->discr != AP_COEFF_SCALAR) {
+        throw std::runtime_error("Non-scalar coefficient in get_lincons");
+      }
+      double d;
+      ap_double_set_scalar(&d, c->val.scalar, MPFR_RNDN);
+      r(j) = d;
+    }
+    ap_coeff_t* c = ap_linexpr0_cstref(exp);
+    if (c->discr != AP_COEFF_SCALAR) {
+      throw std::runtime_error("Non-scalar coefficient in get_lincons");
+    }
+    double d;
+    ap_double_set_scalar(&d, c->val.scalar, MPFR_RNDN);
+    switch (res.p[i].constyp) {
+      case AP_CONS_EQ:
+        ws.push_back(r);
+        bs.push_back(-d);
+        ws.push_back(-r);
+        bs.push_back(d);
+        break;
+      case AP_CONS_SUPEQ:
+      case AP_CONS_SUP:
+        ws.push_back(-r);
+        bs.push_back(d);
+        break;
+      default:
+        throw std::runtime_error("Unknown constraint type in get_lincons");
+    }
+  }
+  ap_lincons0_array_clear(&res);
+  Eigen::MatrixXd weights(ws.size(), d);
+  Eigen::VectorXd biases(bs.size());
+  for (int i = 0; i < ws.size(); i++) {
+    weights.row(i) = ws[i];
+    biases(i) = bs[i];
+  }
+  return LinCons(weights, biases);
 }
 
 std::unique_ptr<AbstractVal> AbstractVal::make_new(ap_abstract0_t* a) const {

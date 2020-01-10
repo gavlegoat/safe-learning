@@ -7,11 +7,14 @@ from Environment import PolySysEnvironment
 from DDPG import *
 import argparse
 
+import synthesis
+
 # Show that there is an invariant that can prove the policy safe
 def selfdrive(learning_method, number_of_rollouts, simulation_steps,
         learning_eposides, critic_structure, actor_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
-        test_episodes=100, retrain_nn=False, safe_training=False, shields=1):
+        test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
+        episode_len=100):
     # 2-dimension and 1-input system
     ds = 2
     us = 1
@@ -109,10 +112,21 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps,
 
     names = {0:"p", 1:"gamma"}
 
+    capsule = synthesis.get_env_capsule("selfdriving")
+
+    # unsafe if (cr - x1) (cl - x1) >= 0 which is exactly when either
+    # cr - x1 >= 0 and cl - x1 >= 0 or cr - x1 <= 0 and cl - x1 <= 0
+    # In this case we have cl = 2 and cr = -2, so cr - x1 >= 0 ==>
+    # -2 - x1 >= 0 ==> 2 - x1 >= 0 and the first case can be collapsed to
+    # -2 - x1 >= 0. Similarly, the second case is collapsed to 2 - x1 <= 0
+    unsafe_A = [np.matrix([[1, 0]]), np.matrix([[-1, 0]])]
+    unsafe_b = [np.matrix([[-2]]), np.matrix([[-2]])]
+
     # Use sheild to directly learn a linear controller
     env = PolySysEnvironment(f, f_to_str,rewardf, testf, unsafe_string, ds,
             us, Q, R, s_min, s_max, u_max=u_max, u_min=u_min,
-            bound_x_min=bound_x_min, bound_x_max=bound_x_max, timestep=0.1)
+            bound_x_min=bound_x_min, bound_x_max=bound_x_max, timestep=0.1,
+            capsule=capsule, unsafe_A=unsafe_A, unsafe_b=unsafe_b)
 
     if retrain_nn:
         args = { 'actor_lr': 0.0001,
@@ -121,7 +135,7 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure, 
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': 1000,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -137,7 +151,7 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure, 
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': learning_eposides,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -180,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -190,9 +205,10 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     selfdrive("random_search", 200, 200, 0, [300, 200], [300, 250, 200],
             "ddpg_chkp/selfdriving/300200300250200/", nn_test=nn_test,
             retrain_shield=retrain_shield, shield_test=shield_test,
             test_episodes=test_episodes, retrain_nn=retrain_nn,
-            safe_training=safe_training, shields=shields)
+            safe_training=safe_training, shields=shields, episode_len=ep_len)

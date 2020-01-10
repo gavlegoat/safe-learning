@@ -7,10 +7,13 @@ from Environment import PolySysEnvironment
 from DDPG import *
 import argparse
 
+import synthesis
+
 def lanekeep (learning_method, number_of_rollouts, simulation_steps,
         learning_eposides, actor_structure, critic_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
-        test_episodes=100, retrain_nn=False, safe_training=False, shields=1):
+        test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
+        episode_len=1000):
     v0 = 27.7
     cf = 133000
     cr = 98800
@@ -95,10 +98,16 @@ def lanekeep (learning_method, number_of_rollouts, simulation_steps,
     # Use sheild to directly learn a linear controller
     u_min = np.array([[-1]])
     u_max = np.array([[1]])
+
+    capsule = synthesis.get_env_capsule("lanekeeping")
+    unsafe_A = [np.matrix([[1, 0, 0, 0]]), np.matrix([[-1, 0, 0, 0]])]
+    unsafe_b = [np.matrix([[0.9]]), np.matrix([[0.9]])]
+
     env = PolySysEnvironment(f, f_to_str, rewardf, testf, unsafe_string, ds,
             us, Q, R, s_min, s_max, u_max=u_max, u_min=u_min,
             disturbance_x_min=disturbance_x_min,
-            disturbance_x_max=disturbance_x_max, timestep=h)
+            disturbance_x_max=disturbance_x_max, timestep=h,
+            capsule=capsule, unsafe_A=unsafe_A, unsafe_b=unsafe_b)
 
     if retrain_nn:
         args = { 'actor_lr': 0.0001,
@@ -107,7 +116,7 @@ def lanekeep (learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 1000,
+                 'max_episode_len': episode_len,
                  'max_episodes': 1000,
                  'minibatch_size': 64,
                  'random_seed': 2903,
@@ -123,7 +132,7 @@ def lanekeep (learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 1000,
+                 'max_episode_len': episode_len,
                  'max_episodes': learning_eposides,
                  'minibatch_size': 64,
                  'random_seed': 2903,
@@ -161,6 +170,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -171,9 +181,11 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     lanekeep("random_search", 200, 200, 0, [240, 200], [280, 240, 200],
             "ddpg_chkp/lanekeeping/240200280240200/", nn_test=nn_test,
             retrain_shield=retrain_shield, shield_test=shield_test,
             test_episodes=test_episodes, retrain_nn=retrain_nn,
-            safe_training=safe_training, shields=shields)
+            safe_training=safe_training, shields=shields,
+            episode_len=ep_len)

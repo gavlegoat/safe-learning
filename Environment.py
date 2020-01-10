@@ -87,10 +87,10 @@ class Environment:
 
         self.last_u = uk
 
-        if (uk > self.u_max).all():
-            uk = self.u_max
-        elif (uk < self.u_min).all():
-            uk = self.u_min
+        #if (uk > self.u_max).all():
+        #    uk = self.u_max
+        #elif (uk < self.u_min).all():
+        #    uk = self.u_min
 
         if self.continuous:
             self.xk = self.xk + self.timestep * f(self.xk, uk) \
@@ -169,7 +169,7 @@ class PolySysEnvironment:
                   bound_x_min=None, bound_x_max=None, disturbance_x_min=None,
                   disturbance_x_max=None, continuous=True, timestep = 0.01,
                   unsafe=False, multi_boundary=False, bad_reward=-900,
-                  terminal_err=0):
+                  terminal_err=0, capsule=None, unsafe_A=None, unsafe_b=None):
 
         # system dynamics:
         self.polyf = polyf
@@ -207,14 +207,12 @@ class PolySysEnvironment:
         # when np.sum(np.power(self.last_u, 2))+np.sum(np.power(self.xk, 2)) < terminal_err, win the game
         self.terminal_err = terminal_err
 
-        # if the model is continuous
         self.continuous = continuous
-
-        # Time step
         self.timestep = timestep
-
-        # bad reward
         self.bad_reward = bad_reward
+        self.capsule = capsule
+        self.unsafe_A = unsafe_A
+        self.unsafe_b = unsafe_b
 
         # sample an initial condition for system
         self.reset()

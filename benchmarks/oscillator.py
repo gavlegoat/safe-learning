@@ -11,7 +11,8 @@ import argparse
 def oscillator(learning_method, number_of_rollouts, simulation_steps,
         learning_eposides, critic_structure, actor_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
-        test_episodes=100, retrain_nn=False, safe_training=False, shields=1):
+        test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
+        episode_len=100):
 
     # 10-dimension and 1-input system and 1-disturbance system
     ds = 18
@@ -41,6 +42,46 @@ def oscillator(learning_method, number_of_rollouts, simulation_steps,
         delta[16,0] = 5*x[15,0] - 5*x[16,0]
         delta[17,0] = 5*x[16,0] - 5*x[17,0]
         return delta
+
+    A = np.matrix(
+            [[-2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [5, 0, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 5, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 5, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 5, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 5, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 5, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 5, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 5, -5, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -5, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -5, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -5, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -5, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -5, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -5, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -5, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -5]])
+
+    B = np.matrix(
+        [[1, 0],
+         [0, 1],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0],
+         [0, 0]])
 
     #Closed loop system dynamics to text
     def f_to_str(K):
@@ -110,6 +151,7 @@ def oscillator(learning_method, number_of_rollouts, simulation_steps,
     u_min = np.array([[-50.], [-50]])
     u_max = np.array([[ 50.], [ 50]])
 
+    # TODO
     env = PolySysEnvironment(f, f_to_str,rewardf, testf, unsafe_string, ds,
             us, Q, R, s_min, s_max, u_max=u_max, u_min=u_min, timestep=h)
 
@@ -121,7 +163,7 @@ def oscillator(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': 1000,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -137,7 +179,7 @@ def oscillator(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': learning_eposides,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -176,6 +218,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -186,9 +229,11 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     oscillator("random_search", 200, 200, 0, [240, 200], [280, 240, 200],
             "ddpg_chkp/oscillator/18/240200280240200/", nn_test=nn_test,
             retrain_shield=retrain_shield, shield_test=shield_test,
             test_episodes=test_episodes, retrain_nn=retrain_nn,
-            safe_training=safe_training, shields=shields)
+            safe_training=safe_training, shields=shields,
+            episode_len=ep_len)

@@ -1,412 +1,276 @@
 import metrics
 from metrics import timeit
 from main import *
+import scipy.optimize
+import Environment
 
 import os
 import re
 
+import synthesis
+
 class Shield(object):
+    """A safe controller for an environment.
 
-    def __init__(self, env, actor, model_path=None, force_learning=False,
-              debug=False, resultList=None):
-        """init
+    This class represents a disjunctive linear controller for some environment.
+    That is, the controller consists of a list of pairs of polytopes and
+    matrices. To apply the controller at a particular state, we choose a
+    polytope that the state is in and multiply the state by the corresponding
+    matrix.
 
-        Args:
-            env (Environment): environment
-            actor (ActorNetwork): actor
-            force_learning (bool, optional): if true, even there are model stored in model path, still train.
+    Note that a polytope is represented as a matrix A and a vector b where the
+    polytope includes all points x such that A * x <= b.
+
+    Attributes:
+        K_list (list of matrices): The linear controllers for this shield.
+        inv_list (list of polytopes): The spaces associated with each controller.
+    """
+
+    def __init__(self, env, K_list=None, inv_list=None, cover_list=None, bound=20):
+        """Initialize a new Shield.
+
+        If K_list and inv_list are given, they are used as the new shield.
+        Otherwise, the new shield is initialized empty and must be trained
+        with train_shield().
+
+        Arguments:
+            env (Environment): The environment under control.
+            actor (ActorNetwork): The actor network.
+
+        Keyword arguments:
+            K_list (list of matrices): The initial controllers.
+            inv_list (list of polytopes): The initial invariants.
         """
         self.env = env
-        self.actor = actor
 
-        self.model_path = model_path
-        self.K = None
-        self.K_list = []
-        self.initial_range_list = []
-        if not force_learning and os.path.isfile(str(self.model_path)):
-            self.K_list = [_K for _K in loadK(self.model_path)]
-        self.continuous = env.continuous
+        self.K_list = [] if K_list is None else K_list
+        self.inv_list = [] if inv_list is None else inv_list
+        self.cover_list = [] if cover_list is None else cover_list
 
-        self.shield_count = 0
+        if K_list is not None:
+            self.set_covers(bound)
 
-        self.debug = debug
+        self.last_shield = -1
 
-        self.step_count = 0
-        self.last_B_value = 0
-        self.keep_increasing = False
+    def set_covers(self, bound=20):
+        self.use_list = []
+        dt = self.env.timestep if self.env.continuous else 0.01
+        if isinstance(self.env, Environment.PolySysEnvironment):
+            unsafe_space = []
+            for (A, b) in zip(self.env.unsafe_A, self.env.unsafe_b):
+                unsafe_space.append((A.tolist(), np.asarray(b).flatten().tolist()))
+            env = (self.env.capsule, self.env.continuous, dt, unsafe_space)
+        else:
+            # unsafe_space format: [(matrix, vector}]
+            unsafe_space = []
+            safe_min = self.env.x_min
+            safe_max = self.env.x_max
+            for i in range(len(safe_min)):
+                A = [[0.0] * len(safe_min)]
+                A[0][i] = -1.0
+                b = [-safe_min[i]]
+                unsafe_space.append((A, b))
+                A[0][i] = 1.0
+                b = [safe_max[i]]
+                unsafe_space.append((A, b))
+            env = (self.env.A.tolist(), self.env.B.tolist(),
+                    self.env.continuous, dt, unsafe_space)
+        covers = []
+        for inv in self.cover_list:
+            covers.append((inv[0].tolist(),
+                inv[1].flatten().tolist()[0],
+                inv[2].flatten().tolist()[0],
+                inv[3].flatten().tolist()[0]))
 
-        # I added this -Greg
-        # Allow the user to provide a shield explicitly.
-        if resultList is not None:
-            if env.continuous:
-                self.B_str_list = []
-                self.B_list = []
-                self.last_B_result = []
-                self.B = None
-                for (x, initial_size, inv, K) in resultList:
-                    self.B_str_list.append(inv + "\n")
-                    self.B_list.append(barrier_certificate_str2func(
-                        inv, self.env.state_dim))
-                    self.K_list.append(K)
-                    initial_range = np.array(
-                            [x - initial_size.reshape(len(initial_size), 1),
-                             x + initial_size.reshape(len(initial_size), 1)])
-                    self.initial_range_list.append(initial_range)
-            else:
-                self.O_inf_list = []
-                for (x, initial_size, O_inf, K) in resultList:
-                    self.K_list.append(K)
-                    self.O_inf_list.append(O_inf)
-                    initial_range = np.array(
-                            [x - initial_size.reshape(len(initial_size), 1),
-                             x + initial_size.reshape(len(initial_size), 1)])
-                    self.initial_range_list.append(initial_range)
+        controllers = []
+        for k in self.K_list:
+            controllers.append(k.tolist())
 
+        ret = synthesis.get_covers(env, controllers, covers, bound)
+
+        for (A, b) in ret:
+            self.use_list.append((np.matrix(A),
+                np.matrix(map(lambda x: [x], b))))
 
     @timeit
-    def train_shield(self, learning_method, number_of_rollouts,
-            simulation_steps, eq_err=1e-2, rewardf=None, testf=None,
-            explore_mag=0.04, step_size=0.05, names=None, coffset=None,
-            bias=False, discretization=False, lqr_start=False, degree=4,
-            without_nn_guide=False, nn_weight=0.0, enable_jit=False,
-            old_shield=None):
-        """train shield
+    def train_shield(self, old_shield, actor, bound=20):
+        """Train a shield.
 
-        Args:
-            learning_method (string): learning method string
-            number_of_rollouts (int): number of rollouts
-            simulation_steps (int): simulation steps
-            timestep (float, optional): timestep for continuous control
-            eq_err (float, optional): amount of guassian error
-            rewardf (None, optional): reward function
-            testf (None, optional): reward function for draw controller
-            explore_mag (float, optional): explore mag
-            step_size (float, optional): step size
-            names (None, optional): names of state
+        This simply invokes the C++ extension, see synthesis.cpp for a more
+        detailed description of the synthesis algorithm. This algorithm
+        requires the old shield to use as a starting point for synthesis.
+
+        Arguments:
+            old_shield (Shield): The previous shield for this environment.
         """
 
-        # TODO: This should change for the new synthesis procedure
-        # At a high level, we need to split the initial region into some set
-        # of disjuncts. Then for each disjunct we compute some set of safe
-        # parameters up to some time bound. Then we can just use this set of
-        # parameters for gradient descent. Alternatively, we can shift the
-        # safe parameters after each update or each set of updates.
-        # The splitting and safe parameters may be related somehow.
+        dt = self.env.timestep if self.env.continuous else 0.01
 
-        # continuous
-        #if self.env.continuous:
-        #    self.B_str_list = []
-        #    self.B_list = []
-        #    self.last_B_result = []
-        #    self.B = None
-        #    if self.K_list == []:
-        #        #assert names is not None
-        #        x0 = self.env.reset()
+        if isinstance(self.env, Environment.PolySysEnvironment):
+            unsafe_space = []
+            for (A, b) in zip(self.env.unsafe_A, self.env.unsafe_b):
+                unsafe_space.append((A.tolist(), np.asarray(b).flatten().tolist()))
+            env = (self.env.capsule, self.env.continuous, dt, unsafe_space)
+        else:
+            # unsafe_space format: [(matrix, vector}]
+            unsafe_space = []
+            safe_min = self.env.x_min
+            safe_max = self.env.x_max
+            for i in range(len(safe_min)):
+                A = [[0.0] * len(safe_min)]
+                A[0][i] = -1.0
+                b = [-safe_min[i]]
+                unsafe_space.append((A, b))
+                A[0][i] = 1.0
+                b = [safe_max[i]]
+                unsafe_space.append((A, b))
+            env = (self.env.A.tolist(), self.env.B.tolist(),
+                    self.env.continuous, dt, unsafe_space)
 
-        #        def default_testf_continous(x, u):
-        #            if self.env.unsafe:
-        #                if ((np.array(x) < self.env.x_max) * \
-        #                        (np.array(x) > self.env.x_min)).all(
-        #                                axis=1).any():
-        #                    return -1
-        #                else:
-        #                    return 0
-        #            else:
-        #                if (x < self.env.x_max).all() and \
-        #                        (x > self.env.x_min).all():
-        #                    return 0
-        #                else:
-        #                    return -1
+        # We need to compute bounding boxes for these polytopes. The
+        # polytopes are represented as a set of linear constraints. In general
+        # we can find the maximum or minimum value for a particular dimension
+        # i by solving a linear optimization problem with objective x_i or
+        # -x_i and the existing constraints.
+        covers = []
+        for inv in old_shield.cover_list:
+            covers.append((inv[0].tolist(),
+                inv[1].flatten().tolist()[0],
+                inv[2].flatten().tolist()[0],
+                inv[3].flatten().tolist()[0]))
 
-        #        def learning_oracle_continuous(x):
-        #            self.K = learn_shield(self.env.A, self.env.B, self.env.Q,
-        #                    self.env.R, x, eq_err, learning_method,
-        #                    number_of_rollouts, simulation_steps, self.actor,
-        #                    self.env.x_min, self.env.x_max, rewardf=rewardf,
-        #                    continuous=True, timestep=self.env.timestep,
-        #                    explore_mag=explore_mag, step_size=step_size,
-        #                    coffset=coffset, bias=bias,
-        #                    unsafe_flag=self.env.unsafe, lqr_start=lqr_start,
-        #                    without_nn_guide=without_nn_guide,
-        #                    nn_weight=nn_weight, old_shield=old_shield)
-        #            return self.K
+        controllers = []
+        for k in old_shield.K_list:
+            controllers.append(k.tolist())
 
-        #        def draw_oracle_continuous(x, K):
-        #            # draw_controller (self.env.A, self.env.B, self.K, x, simulation_steps*shield_testing_on_x_ep_len, names, True, 0.01)
-        #            test_reward = testf if testf is not None \
-        #                    else default_testf_continous
-        #            result = test_controller(self.env.A, self.env.B, self.K, x,
-        #                    simulation_steps*shield_testing_on_x_ep_len,
-        #                    rewardf=test_reward, continuous=True,
-        #                    timestep=self.env.timestep, coffset=coffset,
-        #                    bias=bias)
-        #            return result
+        def measure(K, space, dataset):
+            # TODO: Use dataset to implement DAgger. The dataset
+            # object should be created if it is None and updated with
+            # new trajectories otherwise.
+            A = np.matrix(space[0])
+            b = np.matrix(map(lambda x: [x], space[1]))
+            lower = np.matrix(map(lambda x: [x], space[2]))
+            upper = np.matrix(map(lambda x: [x], space[3]))
+            total = 0.0
+            for _ in range(50):
+                # sample an initial state from the cover of this controller
+                iters = 0
+                while True:
+                    x = np.random.random_sample(lower.shape)
+                    x = lower + np.multiply(x, upper - lower)
+                    if (A * x <= b).all():
+                        break
+                    iters += 1
+                    if iters > 100:
+                        # This space is very low-density in the region
+                        # In this case we will just return some value because
+                        # the probability of the state of the system reaching
+                        # this space is low
+                        return (0.0, dataset)
+                    #else:
+                    #    print x
+                    #    print A * x
+                    #    print b
+                diff = 0.0
+                for _ in range(30):
+                    u_n = actor.predict(x.transpose())
+                    u_k = K * x
+                    diff += np.linalg.norm(u_n - u_k)
+                    if isinstance(self.env, Environment.Environment):
+                        xp = self.env.A * x + self.env.B * u_k
+                    else:
+                        xp = self.env.polyf(x, u_k)
+                    if self.env.continuous:
+                        x = x + self.env.timestep * xp
+                    else:
+                        x = xp
+                total += diff / 30
+            return (-total / 100, dataset)
 
-        #        #Iteratively search polcies that can cover all initial states
-        #        '''
-        #        Fixme: the verification approach does not consider the case under which x_min and x_max 
-        #        '''
-        #        def verification_oracle_continuous(x, initial_size, Theta, K):
-        #            #Theta and K is useless here but required by the API
+        ret = synthesis.synthesize_shield(env, covers, controllers,
+                bound, measure)
 
-        #            #Generate the closed loop system for verification
-        #            Acl = self.env.A + self.env.B.dot(self.K)
-        #            print "Learned Closed Loop System: {}".format(Acl)
+        self.K_list = []
+        self.inv_list = []
+        self.cover_list = []
+        for (k, (A, b), (sA, sb, l, u)) in ret:
+            self.K_list.append(np.matrix(k))
+            self.inv_list.append((np.matrix(A),
+                np.matrix(map(lambda x: [x], b))))
+            self.cover_list.append((np.matrix(sA),
+                np.matrix(map(lambda x: [x], sb)),
+                np.matrix(map(lambda x: [x], l)),
+                np.matrix(map(lambda x: [x], u))))
+        self.set_covers(bound)
 
-        #            if (discretization):
-        #                S0 = Polyhedron.from_bounds(self.env.s_min,
-        #                        self.env.s_max)
-        #                self.O_inf = verify_controller_via_discretization(Acl,
-        #                        self.env.timestep, self.env.x_min,
-        #                        self.env.x_max)
-        #                min = np.array([[x[i,0] - initial_size[i]] \
-        #                        for i in range(self.env.state_dim)])
-        #                max = np.array([[x[i,0] + initial_size[i]] \
-        #                        for i in range(self.env.state_dim)])
-        #                S = Polyhedron.from_bounds(min, max)
-        #                S = S.intersection(S0)
-        #                ce = S.is_included_in_with_ce(self.O_inf)
-        #                return (ce is None)
-        #            else:
-        #                #Specs for initial conditions
-        #                init = []
-        #                initSOSPoly = []
-        #                init_cnstr = []
-        #                for i in range(self.env.state_dim):
-        #                    init.append("init" + str(i+1) + " = (x[" + \
-        #                            str(i+1) + "] - " + \
-        #                            str(self.env.s_min[i,0]) + ")*(" + \
-        #                            str(self.env.s_max[i,0]) + "-x[" + \
-        #                            str(i+1) + "])")
-        #                for i in range(self.env.state_dim):
-        #                    initSOSPoly.append("@variable m Zinit" + \
-        #                            str(i+1) + " SOSPoly(Z)")
-        #                for i in range(self.env.state_dim):
-        #                    init_cnstr.append(" - Zinit" + str(i+1) + \
-        #                            "*init" + str(i+1))
-        #                #Specs for initial conditions subject to intial_size
-        #                for i in range(self.env.state_dim):
-        #                    l = x[i,0] - initial_size[i]
-        #                    h = x[i,0] + initial_size[i]
-        #                    init.append("init" + str(self.env.state_dim+i+1) \
-        #                            + " = (x[" + str(i+1) + "] - (" + str(l) \
-        #                            + "))*((" + str(h) + ")-x[" + str(i+1) + \
-        #                            "])")
-        #                for i in range(self.env.state_dim):
-        #                    initSOSPoly.append("@variable m Zinit" + \
-        #                            str(self.env.state_dim+i+1) + \
-        #                            " SOSPoly(Z)")
-        #                for i in range(self.env.state_dim):
-        #                    init_cnstr.append(" - Zinit" + \
-        #                            str(self.env.state_dim+i+1) + "*init" + \
-        #                            str(self.env.state_dim+i+1))
-        #                #Specs for unsafe condions depends on env.unsafe
-        #                unsafe = []
-        #                unsafeSOSPoly = []
-        #                unsafe_cnstr = []
-        #                if (self.env.unsafe):
-        #                    # unsafe is given either via unsafe regions or
-        #                    # unsafe properties in the env
-        #                    if (self.env.unsafe_property is not None):
-        #                        unsafes = self.env.unsafe_property ()
-        #                        unsafe = []
-        #                        unsafeSOSPoly = []
-        #                        unsafe_cnstr = []
-        #                        for i in range(len(unsafes)):
-        #                            unsafe.append("unsafe" + str(i+1) + \
-        #                                    " = " + unsafes[i])
-        #                            unsafeSOSPoly.append("@variable m Zunsafe"\
-        #                                    + str(i+1) + " SOSPoly(Z)")
-        #                            unsafe_cnstr.append(" - Zunsafe" + \
-        #                                    str(i+1) + "*unsafe" + str(i+1))
-        #                    if (self.env.x_min is not None):
-        #                        for j in range(len(self.env.x_min)):
-        #                            unsafe_query = ""
-        #                            unsafe_x_min = self.env.x_min[j]
-        #                            unsafe_x_max = self.env.x_max[j]
-        #                            for i in range(self.env.state_dim):
-        #                                if unsafe_x_min[i, 0] != np.NINF and \
-        #                                        unsafe_x_max[i, 0] != np.inf:
-        #                                    unsafe.append("unsafe" + \
-        #                                            str(i+1) + " = (x[" + \
-        #                                            str(i+1) + "] - " + \
-        #                                            str(unsafe_x_min[i,0]) + \
-        #                                            ")*(" + \
-        #                                            str(unsafe_x_max[i,0]) + \
-        #                                            "-x[" + str(i+1) + "])")
-        #                                    unsafeSOSPoly.append(
-        #                                            "@variable m Zunsafe" + \
-        #                                            str(i+1) + " SOSPoly(Z)")
-        #                                    unsafe_query += " - Zunsafe" + \
-        #                                            str(i+1) + "*unsafe" + \
-        #                                            str(i+1)
-        #                                elif unsafe_x_min[i, 0] != np.NINF:
-        #                                    unsafe.append("unsafe" + str(i+1) \
-        #                                            + " = (x[" + str(i+1) + \
-        #                                            "] - " + \
-        #                                            str(unsafe_x_min[i,0]) + \
-        #                                            ")*(" + \
-        #                                            str(unsafe_x_max[i,0]) + \
-        #                                            "-x[" + str(i+1) + "])")
-        #                                    unsafeSOSPoly.append(
-        #                                            "@variable m Zunsafe" + \
-        #                                            str(i+1) + " SOSPoly(Z)")
-        #                                    unsafe_query += " - Zunsafe" + \
-        #                                            str(i+1) + "*unsafe" + \
-        #                                            str(i+1)
-        #                                elif unsafe_x_max[i, 0] != np.inf: 
-        #                                    unsafe.append("unsafe" + str(i+1) \
-        #                                            + " = (x[" + str(i+1) + \
-        #                                            "] - " + \
-        #                                            str(unsafe_x_min[i,0]) + \
-        #                                            ")*(" + \
-        #                                            str(unsafe_x_max[i,0]) + \
-        #                                            "-x[" + str(i+1) + "])")
-        #                                    unsafeSOSPoly.append(
-        #                                            "@variable m Zunsafe" + \
-        #                                            str(i+1) + " SOSPoly(Z)")
-        #                                    unsafe_query += " - Zunsafe" + \
-        #                                            str(i+1) + "*unsafe" + \
-        #                                            str(i+1)
-        #                            if unsafe_query != "":
-        #                              unsafe_cnstr.append(unsafe_query)
-        #                else:
-        #                    for i in range(self.env.state_dim):
-        #                        mid = (self.env.x_min[i, 0] + \
-        #                                self.env.x_max[i, 0]) / 2
-        #                        radium = self.env.x_max[i, 0] - mid
-        #                        unsafe.append("unsafe" + str(i+1) + " = (x[" \
-        #                                + str(i+1) + "] - " + str(mid) + \
-        #                                ")^2 - " + str(pow(radium, 2)))
-        #                        unsafeSOSPoly.append("@variable m Zunsafe" + \
-        #                                str(i+1) + " SOSPoly(Z)")
-        #                        unsafe_cnstr.append(" - Zunsafe" + str(i+1) + \
-        #                                "*unsafe" + str(i+1))
-        #                # Now we have init, unsafe and sysdynamics for verification
-        #                sos = genSOSContinuousAsDiscreteMultipleUnsafes(
-        #                            self.env.timestep, self.env.state_dim,
-        #                            ",".join(dxdt(Acl)), "\n".join(init),
-        #                            "\n".join(unsafe), "\n".join(initSOSPoly),
-        #                            "\n".join(unsafeSOSPoly),
-        #                            "".join(init_cnstr), unsafe_cnstr,
-        #                            degree=degree)
-        #                verified = verifySOS(writeSOS("SOS.jl", sos),
-        #                        #False, 900)
-        #                        False, 300)
-        #                print verified
+    def save_shield(self, model_path):
+        """Save a shield to a file.
 
-        #                #if verified.split("#")[0].find("Optimal") >= 0:
-        #                if verified.split("#")[0].find("OPTIMAL") >= 0:
-        #                    # returns Verified and the inductive invariant
-        #                    return True, verified.split("#")[1]
-        #                else:
-        #                    return False, None
-        #                #return (verified.find("Optimal") >= 0)
+        Arguments:
+            model_path (string): The path to save this shield to.
+        """
+        # TODO
+        raise NotImplementedError("save_shield is not yet implemented")
 
-        #        Theta = (self.env.s_min, self.env.s_max)
-        #        #result, resultList = verify_controller_z3(x0, Theta, verification_oracle_continuous, learning_oracle_continuous, draw_oracle_continuous, continuous=True)
-        #        result, resultList = verify_controller_z3(x0, Theta,
-        #                verification_oracle_continuous,
-        #                learning_oracle_continuous, None, continuous=True)
-        #        print ("Shield synthesis result: {}".format(result))
-        #        if result:
-        #            for (x, initial_size, inv, K) in resultList:
-        #                self.B_str_list.append(inv+"\n")
-        #                self.B_list.append(barrier_certificate_str2func(
-        #                    inv, self.env.state_dim, enable_jit))
-        #                self.K_list.append(K)
-        #                initial_range = np.array(
-        #                        [x - initial_size.reshape(len(initial_size), 1),
-        #                         x + initial_size.reshape(len(initial_size), 1)])
-        #                self.initial_range_list.append(initial_range)
+    def load_shield(self, model_path, enable_jit):
+        """Load a shield previous saved with save_shield().
 
-        #            if self.model_path is not None:
-        #                self.save_shield(os.path.split(self.model_path)[0])
-        #    else:
-        #        self.load_shield(os.path.split(self.model_path)[0], enable_jit)
+        Arguments:
+            model_path (string): The path to load the shield from.
+        """
+        # TODO
+        raise NotImplementedError("load_shield is not yet implemented")
 
-        ## discrete
-        #else:
-        #    self.O_inf_list = []
-        #    self.last_O_inf_result = []
-        #    self.O_inf = None
-        #    if self.K_list == []:
-        #        x0 = self.env.reset()
-        #        S0 = Polyhedron.from_bounds(self.env.s_min, self.env.s_max)
+    def detector(self, x, u):
+        """Determine whether an action is unsafe under this shield.
 
-        #        def default_testf_discrete(x, u):
-        #            if self.env.unsafe:
-        #                if ((np.array(x) < self.env.x_max) * \
-        #                        (np.array(x) > self.env.x_min)).all(
-        #                                axis=1).any():
-        #                    return -1
-        #                else:
-        #                    return 0
-        #            else:
-        #                if (x < self.env.x_max).all() and \
-        #                        (x > self.env.x_min).all() and \
-        #                        (u < self.env.u_max).all() and \
-        #                        (u > self.env.u_min).all():
-        #                    return 0
-        #                else:
-        #                    return -1
+        Arguments:
+            x (np.matrix): current state
+            u (np.matrix): current action
 
-        #        def learning_oracle_discrete(x):
-        #            self.K = learn_shield(self.env.A, self.env.B, self.env.Q,
-        #                    self.env.R, x, eq_err, learning_method,
-        #                    number_of_rollouts, simulation_steps, self.actor,
-        #                    self.env.x_min, self.env.x_max, rewardf=rewardf,
-        #                    continuous=False, timestep=self.env.timestep,
-        #                    explore_mag=explore_mag, step_size=step_size,
-        #                    coffset=coffset, bias=bias,
-        #                    unsafe_flag=self.env.unsafe, lqr_start=lqr_start,
-        #                    without_nn_guide=without_nn_guide,
-        #                    nn_weight=nn_weight, old_shield=old_shield)
-        #            return self.K
+        Returns:
+            bool: True if the action is unsafe.
+        """
+        if isinstance(self.env, Environment.Environment):
+            n = self.env.A * x + self.env.B * u
+        else:
+            n = self.env.polyf(x, u)
 
-        #        def draw_oracle_discrete(x, K):
-        #            # draw_controller (self.env.A, self.env.B, self.K, x, simulation_steps*shield_testing_on_x_ep_len, names, True, 0.01)
-        #            test_reward = testf if testf is not None \
-        #                    else default_testf_discrete
-        #            result = test_controller (self.env.A, self.env.B, self.K,
-        #                    x, simulation_steps*shield_testing_on_x_ep_len,
-        #                    rewardf=test_reward, coffset=coffset, bias=bias)
-        #            return result
+        if self.env.continuous:
+            n = x + self.env.timestep * n
 
-        #        #Iteratively search polcies that can cover all initial states
-        #        def verification_oracle_discrete(x, initial_size, Theta, K):
-        #            self.O_inf = verify_controller(
-        #                    np.asarray(self.env.A), np.asarray(self.env.B),
-        #                    np.asarray(self.K), self.env.x_min, self.env.x_max,
-        #                    self.env.u_min, self.env.u_max)
-        #            min = np.array([[x[i,0] - initial_size[i]] \
-        #                    for i in range(self.env.state_dim)])
-        #            max = np.array([[x[i,0] + initial_size[i]] \
-        #                    for i in range(self.env.state_dim)])
+        for (A, b) in self.inv_list:
+            if (A * n <= b).all():
+                # We are inside the invariant of some piece of the shield
+                self.last_shield = -1
+                print A, b, n, A * n
+                return False
+        return True
 
-        #            S = Polyhedron.from_bounds(min, max)
-        #            S = S.intersection(S0)
-        #            ce = S.is_included_in_with_ce(self.O_inf)
-        #            if ce is None:
-        #                self.K_list.append(K)
-        #                self.O_inf_list.append(self.O_inf)
-        #                initial_range = np.array(
-        #                        [x - initial_size.reshape(len(initial_size), 1),
-        #                         x + initial_size.reshape(len(initial_size), 1)])
-        #                self.initial_range_list.append(initial_range)
-        #            return (ce is None)
+    def call_shield(self, x):
+        """Choose an action for a particular state.
 
-        #        Theta = (self.env.s_min, self.env.s_max)
-        #        #result = verify_controller_z3(x0, Theta, verification_oracle_discrete, learning_oracle_discrete, draw_oracle_discrete, continuous=False)
-        #        result = verify_controller_z3(x0, Theta,
-        #                verification_oracle_discrete, learning_oracle_discrete,
-        #                None, continuous=False)
-        #        print ("Shield synthesis result: {}".format(result))
-        #        if result and self.model_path is not None:
-        #            self.save_shield(os.path.split(self.model_path)[0])
-        #    else:
-        #        self.load_shield(os.path.split(self.model_path)[0], enable_jit)
+        Arguments:
+            x (np.matrix): The current state
 
+        Returns:
+            np.array: An for the current state.
+        """
+        if self.last_shield >= 0:
+            return self.K_list[self.last_shield] * x
+
+        for i in range(len(self.K_list)):
+            (A, b) = self.inv_list[i]
+            if (A * x <= b).all():
+                self.last_shield = i
+                return self.K_list[i] * x
+        print x
+        for (A, b) in self.inv_list:
+            print A
+            print b
+            print A * x
+            print A * x <= b
+        raise RuntimeError("No appropriate controller found in shield invocation")
 
     @timeit
     def train_polysys_shield(self, learning_method, number_of_rollouts,
@@ -438,44 +302,44 @@ class Shield(object):
 
         unsafe_string():      describe polynomial unsafe conditions in string
         """
-        self.B_str_list = []
-        self.B_list = []
-        self.last_B_result = []
-        self.B = None
+        self.b_str_list = []
+        self.b_list = []
+        self.last_b_result = []
+        self.b = none
         self.initial_range_list = []
-        if self.K_list == []:
-            #assert names is not None
+        if self.k_list == []:
+            #assert names is not none
             x0 = self.env.reset()
 
             def learning_oracle_continuous(x):
-                self.K = learn_polysys_shield(self.env.polyf,
-                        self.env.state_dim, self.env.action_dim, self.env.Q,
-                        self.env.R, x, eq_err, learning_method,
+                self.k = learn_polysys_shield(self.env.polyf,
+                        self.env.state_dim, self.env.action_dim, self.env.q,
+                        self.env.r, x, eq_err, learning_method,
                         number_of_rollouts, simulation_steps, self.actor,
-                        rewardf=self.env.rewardf, continuous=True,
+                        rewardf=self.env.rewardf, continuous=true,
                         timestep=self.env.timestep, explore_mag=explore_mag,
                         step_size=step_size, coffset=coffset, bias=bias,
                         without_nn_guide=without_nn_guide, nn_weight=nn_weight)
 
-                return self.K
+                return self.k
 
-            def draw_oracle_continuous(x, K):
-                result = test_controller_helper(self.env.polyf, self.K, x,
+            def draw_oracle_continuous(x, k):
+                result = test_controller_helper(self.env.polyf, self.k, x,
                         simulation_steps*shield_testing_on_x_ep_len,
-                        rewardf=self.env.testf, continuous=True,
+                        rewardf=self.env.testf, continuous=true,
                         timestep=self.env.timestep, coffset=coffset, bias=bias)
                 if (result >= 0):
-                    # Find *a new piece of* controller
-                    saveK(self.model_path, self.K)
+                    # find *a new piece of* controller
+                    savek(self.model_path, self.k)
                 return result
 
-            #Iteratively search polcies that can cover all initial states
-            def verification_oracle_continuous(x, initial_size, Theta, K):
-                #Theta and K is useless here but required by the API
+            #iteratively search polcies that can cover all initial states
+            def verification_oracle_continuous(x, initial_size, theta, k):
+                #theta and k is useless here but required by the api
 
-                #Specs for initial conditions
+                #specs for initial conditions
                 init = []
-                initSOSPoly = []
+                initsospoly = []
                 init_cnstr = []
                 for i in range(self.env.state_dim):
                     init.append("init" + str(i+1) + " = (x[" + str(i+1) + \
@@ -483,12 +347,12 @@ class Shield(object):
                             str(self.env.s_max[i,0]) + "-x[" + str(i+1) + \
                             "])")
                 for i in range(self.env.state_dim):
-                    initSOSPoly.append("@variable m Zinit" + str(i+1) + \
-                            " SOSPoly(Z)")
+                    initsospoly.append("@variable m zinit" + str(i+1) + \
+                            " sospoly(z)")
                 for i in range(self.env.state_dim):
-                    init_cnstr.append(" - Zinit" + str(i+1) + "*init" + \
+                    init_cnstr.append(" - zinit" + str(i+1) + "*init" + \
                             str(i+1))
-                #Specs for initial conditions subject to initial_size
+                #specs for initial conditions subject to initial_size
                 for i in range(self.env.state_dim):
                     l = x[i,0] - initial_size[i]
                     h = x[i,0] + initial_size[i]
@@ -496,61 +360,61 @@ class Shield(object):
                             " = (x[" + str(i+1) + "] - (" + str(l) + \
                             "))*((" + str(h) + ")-x[" + str(i+1) + "])")
                 for i in range(self.env.state_dim):
-                    initSOSPoly.append("@variable m Zinit" + \
-                            str(self.env.state_dim+i+1) + " SOSPoly(Z)")
+                    initsospoly.append("@variable m zinit" + \
+                            str(self.env.state_dim+i+1) + " sospoly(z)")
                 for i in range(self.env.state_dim):
-                    init_cnstr.append(" - Zinit" + \
+                    init_cnstr.append(" - zinit" + \
                             str(self.env.state_dim+i+1) + "*init" + \
                             str(self.env.state_dim+i+1))
 
-                #Specs for unsafe condions
+                #specs for unsafe condions
                 unsafes = self.env.unsafe_property()
                 unsafe = []
-                unsafeSOSPoly = []
+                unsafesospoly = []
                 unsafe_cnstr = []
                 for i in range(len(unsafes)):
                     unsafe.append("unsafe" + str(i+1) + " = " + unsafes[i])
                 for i in range(len(unsafes)):
-                    unsafeSOSPoly.append("@variable m Zunsafe" + str(i+1) + \
-                            " SOSPoly(Z)")
+                    unsafesospoly.append("@variable m zunsafe" + str(i+1) + \
+                            " sospoly(z)")
                 for i in range(len(unsafes)):
-                    unsafe_cnstr.append(" - Zunsafe" + str(i+1) + \
+                    unsafe_cnstr.append(" - zunsafe" + str(i+1) + \
                             "*unsafe" + str(i+1))
 
-                #Specs for bounded state space
+                #specs for bounded state space
                 bound = []
-                boundSOSPoly = []
+                boundsospoly = []
                 bound_cnstr = []
-                if self.env.bound_x_min is not None and \
-                        self.env.bound_x_max is not None:
+                if self.env.bound_x_min is not none and \
+                        self.env.bound_x_max is not none:
                     for i in range(self.env.state_dim):
-                        if self.env.bound_x_min[i,0] is not None and \
-                                self.env.bound_x_max[i,0] is not None:
+                        if self.env.bound_x_min[i,0] is not none and \
+                                self.env.bound_x_max[i,0] is not none:
                             bound.append("bound" + str(i+1) + " = (x[" + \
                                     str(i+1) + "] - " + \
                                     str(self.env.bound_x_min[i,0]) + ")*(" + \
                                     str(self.env.bound_x_max[i,0]) + "-x[" + \
                                     str(i+1) + "])")
                     for i in range(self.env.state_dim):
-                        if self.env.bound_x_min[i,0] is not None and \
-                                self.env.bound_x_max[i,0] is not None:
-                            boundSOSPoly.append("@variable m Zbound" + \
-                                    str(i+1) + " SOSPoly(Z)")
+                        if self.env.bound_x_min[i,0] is not none and \
+                                self.env.bound_x_max[i,0] is not none:
+                            boundsospoly.append("@variable m zbound" + \
+                                    str(i+1) + " sospoly(z)")
                     for i in range(self.env.state_dim):
-                        if self.env.bound_x_min[i,0] is not None and \
-                                self.env.bound_x_max[i,0] is not None:
-                            bound_cnstr.append(" - Zbound" + str(i+1) + \
+                        if self.env.bound_x_min[i,0] is not none and \
+                                self.env.bound_x_max[i,0] is not none:
+                            bound_cnstr.append(" - zbound" + str(i+1) + \
                                     "*bound" + str(i+1))
 
-                #Specs for bounded environment disturbance
+                #specs for bounded environment disturbance
                 disturbance = []
-                disturbanceSOSPoly = []
+                disturbancesospoly = []
                 disturbance_cnstr = []
-                if self.env.disturbance_x_min is not None and \
-                        self.env.disturbance_x_max is not None:
+                if self.env.disturbance_x_min is not none and \
+                        self.env.disturbance_x_max is not none:
                     for i in range(self.env.state_dim):
-                        if self.env.disturbance_x_min[i,0] is not None and \
-                                self.env.disturbance_x_max[i,0] is not None:
+                        if self.env.disturbance_x_min[i,0] is not none and \
+                                self.env.disturbance_x_max[i,0] is not none:
                             disturbance.append("disturbance" + str(i+1) + \
                                     " = (d[" + str(i+1) + "] - " + \
                                     str(self.env.disturbance_x_min[i,0]) + \
@@ -558,65 +422,65 @@ class Shield(object):
                                     str(self.env.disturbance_x_max[i,0]) + \
                                     "-d[" + str(i+1) + "])")
                     for i in range(self.env.state_dim):
-                        if self.env.disturbance_x_min[i,0] is not None and \
-                                self.env.disturbance_x_max[i,0] is not None:
-                            disturbanceSOSPoly.append(
-                                    "@variable m Zdisturbance" + str(i+1) + \
-                                            " SOSPoly(D)")
+                        if self.env.disturbance_x_min[i,0] is not none and \
+                                self.env.disturbance_x_max[i,0] is not none:
+                            disturbancesospoly.append(
+                                    "@variable m zdisturbance" + str(i+1) + \
+                                            " sospoly(d)")
                     for i in range(self.env.state_dim):
-                        if self.env.disturbance_x_min[i,0] is not None and \
-                                self.env.disturbance_x_max[i,0] is not None:
-                            disturbance_cnstr.append(" - Zdisturbance" + \
+                        if self.env.disturbance_x_min[i,0] is not none and \
+                                self.env.disturbance_x_max[i,0] is not none:
+                            disturbance_cnstr.append(" - zdisturbance" + \
                                     str(i+1) + "*disturbance" + str(i+1))
 
-                # Now we have init, unsafe and sysdynamics for verification
-                sos = None
-                if self.env.bound_x_min is not None and \
-                        self.env.bound_x_max is not None:
-                    sos = genSOSwithBound(self.env.state_dim,
-                            ",".join(self.env.polyf_to_str(K)),
+                # now we have init, unsafe and sysdynamics for verification
+                sos = none
+                if self.env.bound_x_min is not none and \
+                        self.env.bound_x_max is not none:
+                    sos = gensoswithbound(self.env.state_dim,
+                            ",".join(self.env.polyf_to_str(k)),
                             "\n".join(init), "\n".join(unsafe),
-                            "\n".join(bound), "\n".join(initSOSPoly),
-                            "\n".join(unsafeSOSPoly), "\n".join(boundSOSPoly),
+                            "\n".join(bound), "\n".join(initsospoly),
+                            "\n".join(unsafesospoly), "\n".join(boundsospoly),
                             "".join(init_cnstr), "".join(unsafe_cnstr),
                             "".join(bound_cnstr), degree=degree)
-                elif self.env.disturbance_x_min is not None and \
-                        self.env.disturbance_x_max is not None:
-                    sos = genSOSwithDisturbance(self.env.state_dim,
-                            ",".join(self.env.polyf_to_str(K)),
+                elif self.env.disturbance_x_min is not none and \
+                        self.env.disturbance_x_max is not none:
+                    sos = gensoswithdisturbance(self.env.state_dim,
+                            ",".join(self.env.polyf_to_str(k)),
                             "\n".join(init), "\n".join(unsafe),
-                            "\n".join(disturbance), "\n".join(initSOSPoly),
-                            "\n".join(unsafeSOSPoly),
-                            "\n".join(disturbanceSOSPoly), "".join(init_cnstr),
+                            "\n".join(disturbance), "\n".join(initsospoly),
+                            "\n".join(unsafesospoly),
+                            "\n".join(disturbancesospoly), "".join(init_cnstr),
                             "".join(unsafe_cnstr), "".join(disturbance_cnstr),
                             degree=degree)
                 else:
-                    sos = genSOS(self.env.state_dim,
-                            ",".join(self.env.polyf_to_str(K)),
+                    sos = gensos(self.env.state_dim,
+                            ",".join(self.env.polyf_to_str(k)),
                             "\n".join(init), "\n".join(unsafe),
-                            "\n".join(initSOSPoly), "\n".join(unsafeSOSPoly),
+                            "\n".join(initsospoly), "\n".join(unsafesospoly),
                             "".join(init_cnstr), "".join(unsafe_cnstr),
                             degree=degree)
-                #verified = verifySOS(writeSOS("SOS.jl", sos), False, 900,
-                verified = verifySOS(writeSOS("SOS.jl", sos), False, 300,
+                #verified = verifysos(writesos("sos.jl", sos), false, 900,
+                verified = verifysos(writesos("sos.jl", sos), false, 300,
                         aggressive=aggressive)
                 print verified
 
-                #if verified.split("#")[0].find("Optimal") >= 0:
-                if verified.split("#")[0].find("OPTIMAL") >= 0:
-                    return True, verified.split("#")[1]
+                #if verified.split("#")[0].find("optimal") >= 0:
+                if verified.split("#")[0].find("optimal") >= 0:
+                    return true, verified.split("#")[1]
                 else:
-                    return False, None
+                    return false, none
 
-            Theta = (self.env.s_min, self.env.s_max)
-            result, resultList = verify_controller_z3(x0, Theta, verification_oracle_continuous, learning_oracle_continuous, draw_oracle_continuous, continuous=True)
-            print ("Shield synthesis result: {}".format(result))
+            theta = (self.env.s_min, self.env.s_max)
+            result, resultlist = verify_controller_z3(x0, theta, verification_oracle_continuous, learning_oracle_continuous, draw_oracle_continuous, continuous=true)
+            print ("shield synthesis result: {}".format(result))
             if result:
-                for (x, initial_size, inv, K) in resultList:
-                    self.B_str_list.append(inv+"\n")
-                    self.B_list.append(barrier_certificate_str2func(
+                for (x, initial_size, inv, k) in resultlist:
+                    self.b_str_list.append(inv+"\n")
+                    self.b_list.append(barrier_certificate_str2func(
                         inv, self.env.state_dim, enable_jit))
-                    self.K_list.append(K)
+                    self.k_list.append(k)
                     initial_range = np.array(
                             [x - initial_size.reshape(len(initial_size), 1),
                              x + initial_size.reshape(len(initial_size), 1)])
@@ -626,224 +490,9 @@ class Shield(object):
         else:
             self.load_shield(os.path.split(self.model_path)[0], enable_jit)
 
-    def save_shield(self, model_path):
-        if self.env.continuous:
-            with open(model_path+"/shield.model", "w") as f:
-                for B_str in self.B_str_list:
-                    f.write(B_str)
-                    # print B_str
-            print "store shield to " + model_path + "/shield.model"
-            saveK(model_path + "/K.model", np.array(self.K_list))
-            print "store K to " + model_path + "/K.model.npy"
-            saveK(model_path + "/initial_range.model",
-                    np.array(self.initial_range_list))
-            print "store initial_range to " + model_path + \
-                    "/initial_range.model.npy"
-        else:
-            saveK(model_path + "/K.model", np.array(self.K_list))
-            print "store K to " + model_path + "/K.model.npy"
-            saveK(model_path + "/initial_range.model",
-                    np.array(self.initial_range_list))
-            print "store initial_range to " + model_path + \
-                    "/initial_range.model.npy"
-
-    def load_shield(self, model_path, enable_jit):
-        if self.env.continuous:
-            with open(model_path+"/shield.model", "r") as f:
-                for B_str in f:
-                    self.B_str_list.append(B_str)
-                    self.B_list.append(barrier_certificate_str2func(
-                        B_str, self.env.state_dim, enable_jit))
-            print "load barrier from " + model_path + "/shield.model"
-            self.K_list = [K for K in loadK(model_path+"/K.model.npy")]
-            print "load K from " + model_path + "/K.model.npy"
-            self.initial_range_list = [initr for initr in loadK(model_path + \
-                    "/initial_range.model.npy")]
-            print "load initial range to " + model_path + \
-                    "/initial_range.model.npy"
-        else:
-          self.K_list = [K for K in loadK(model_path + "/K.model.npy")]
-          print "load K from " + model_path + "/K.model.npy"
-          self.initial_range_list = [initr for initr in loadK(model_path + \
-                  "/initial_range.model.npy")]
-          print "load initial range to " + model_path + \
-                  "/initial_range.model.npy"
-          for K in self.K_list:
-              O_inf = verify_controller(np.asarray(self.env.A),
-                      np.asarray(self.env.B), np.asarray(K), self.env.x_min,
-                      self.env.x_max, self.env.u_min, self.env.u_max)
-              self.O_inf_list.append(O_inf)
-
-    def select_shield(self):
-        i = -1
-
-        if len(self.initial_range_list) > 1:
-            lowboundaries = \
-                    np.array([item[0] for item in self.initial_range_list])
-            upboundaries = \
-                    np.array([item[1] for item in self.initial_range_list])
-            if self.debug:
-                print "x0: \n", self.env.x0
-                print "low boundary: \n", lowboundaries
-                print "up boundary: \n", upboundaries
-            select_list = [(self.env.x0>=low).all() * \
-                    (self.env.x0<=high).all() for low, high in \
-                    zip(lowboundaries, upboundaries)]
-            i = select_list.index(True)
-            if self.debug:
-                print "select list", select_list
-        elif len(self.initial_range_list) == 1:
-            i == 0
-        else:
-            print "Error: No shield available!"
-            assert (False)
-
-        self.K = self.K_list[i]
-
-        if self.continuous:
-            self.B = self.B_list[i]
-            if self.debug:
-                print "Index:", i
-                print self.B_str_list[i]
-            return self.B
-        else:
-            self.O_inf = self.O_inf_list[i]
-            return self.O_inf
-
-
-    def detector(self, x, u, mode="single", loss_compensation=0.0,
-            increase_step=-1):
-        """detect if there are dangerous state in furture
-
-        Args:
-            x: current state
-            u: current action
-            mode (str, optional): single(faster, more calls) -> choose one shield according to the initial state.
-                                  all(slower, less calls) -> use all shield at run time, if all the B > 0, call shield.
-            loss_compensation (float, optional): The compensation for loss in calculating barrier
-            increase_step (int, optional): if B's value keep increase this step, call shield until the vale stop increasing,
-                                           now only support the single mode.
-
-        Returns:
-            Bool: True -> call shield
-                  False -> call neural network
-        """
-        mode_tuple = ("single", "all")
-        assert mode in mode_tuple
-
-        xk = self.env.simulation(u)
-        # single shield model
-        if mode == mode_tuple[0]:
-            # continuous
-            if self.env.continuous:
-                if self.B is None:
-                    self.select_shield()
-                B_value = self.B(*state2list(xk))
-
-                if self.debug:
-                    print B_value
-
-                if increase_step >= 0:
-                    if B_value > self.last_B_value:
-                        self.step_count += 1
-                    else:
-                        self.keep_increasing = False
-                    self.last_B_value = B_value
-                    if self.step_count >= increase_step:
-                        self.step_count = 0
-                        self.keep_increasing = True
-                    if self.keep_increasing:
-                        return True
-
-                if B_value > -loss_compensation:
-                    return True
-                return False
-            # discrete
-            else:
-                self.select_shield()
-                if self.O_inf.contains(xk):
-                    return False
-                return True
-        # all shield model
-        elif mode == mode_tuple[1]:
-            # continuous
-            if self.env.continuous:
-                current_B_result = []
-                if self.last_B_result == []:
-                    lowboundaries = \
-                            np.array([i[0] for i in self.initial_range_list])
-                    upboundaries = \
-                            np.array([i[1] for i in self.initial_range_list])
-                    self.last_B_result = \
-                            [np.logical_not((self.env.x0 > low).all() * \
-                            (self.env.x0 < high).all()) for low, high in \
-                            zip(lowboundaries, upboundaries)]
-                debug_list = []
-                for B in self.B_list:
-                    B_value = B(*state2list(xk))
-                    if self.debug:
-                        debug_list.append(B_value)
-                    res = B_value > -loss_compensation
-                    current_B_result.append(res)
-                if self.debug:
-                    print debug_list
-
-                if np.array(current_B_result).all():
-                    # The K will be called latter
-                    self.K = self.K_list[self.last_B_result.index(False)]
-                    return True
-
-                self.last_B_result = current_B_result
-                return False
-            # discrete
-            else:
-                current_O_inf_result = []
-                if self.last_O_inf_result == []:
-                    lowboundaries = \
-                            np.array([i[0] for i in self.initial_range_list])
-                    upboundaries = \
-                            np.array([i[1] for i in self.initial_range_list])
-                    self.last_O_inf_result = \
-                            [np.logical_not((self.env.x0 > low).all() * \
-                            (self.env.x0 < high).all()) for low, high in \
-                            zip(lowboundaries, upboundaries)]
-
-                for O_inf in self.O_inf_list:
-                    res = not O_inf.contains(xk)
-                    current_O_inf_result.append(res)
-                if self.debug:
-                    print xk
-                    print current_O_inf_result
-
-                if np.array(current_O_inf_result).all():
-                    # The K will be called latter
-                    self.K = self.K_list[self.last_O_inf_result.index(False)]
-                    return True
-
-                self.last_O_inf_result = current_O_inf_result
-                return False
-
-
-    def call_shield(self, x, mute=False):
-        """call shield
-
-        Args:
-            x : current state
-            mute (bool, optional): print !shield or not
-
-        Returns:
-            shield action
-        """
-        u = self.K.dot(x)
-        if not mute:
-            print 'Shield! in state: \n', x
-        self.shield_count += 1
-
-        return u
-
 
     @timeit
-    def test_shield(self, test_ep=1, test_step=5000, x0=None, mode="single", loss_compensation=0, shield_combo=1, mute=False):
+    def test_shield(self, actor, test_ep=1, test_step=5000, x0=None, mode="single", loss_compensation=0, shield_combo=1, mute=False):
         """test if shield works
 
         Args:
@@ -866,17 +515,15 @@ class Shield(object):
                 x = self.env.reset()
             init_x = x
             for i in xrange(test_step):
-                u = np.reshape(self.actor.predict(np.reshape(np.array(x), \
-                    (1, self.actor.s_dim))), (self.actor.a_dim, 1))
+                u = np.reshape(actor.predict(np.reshape(np.array(x), \
+                    (1, actor.s_dim))), (actor.a_dim, 1))
 
                 # safe or not
-                if self.detector(x, u, mode=mode,
-                        loss_compensation=loss_compensation) or \
-                                (combo_remain > 0):
+                if self.detector(x, u) or combo_remain > 0:
                     if combo_remain == 0:
                         combo_remain = shield_combo
 
-                    u = self.call_shield(x, mute=mute)
+                    u = self.call_shield(x)
                     if not mute:
                         print "!shield at step {}".format(i)
 
@@ -923,7 +570,7 @@ class Shield(object):
         for ep in xrange(sample_ep):
             x = self.env.reset()
             for i in xrange(sample_step):
-                u = self.call_shield(x, mute=True)
+                u = self.call_shield(x)
                 max_boundary, min_boundary = metrics.find_boundary(
                         x, max_boundary, min_boundary)
                 # step
@@ -948,69 +595,3 @@ class Shield(object):
             print loss
 
         return K
-
-
-def barrier_certificate_str2func(bc_str, vars_num, enable_jit=False):
-    """transform julia barrier string to function
-
-    Args:
-        bc_str (str): string
-        vars_num (int): the dimension number of state
-        enable_jit: enable jit, the performance of B will increase, but it takes time to preprocess B
-    """
-    variables = ["x"+str(i+1) for i in xrange(vars_num)]
-
-    eval_str = re.sub("\^", r"**", bc_str)
-    eval_str = eval_str.replace("[", "").replace("]", "")
-    #var_pattern = re.compile(r"(?P<var>x\d*)")
-    #eval_str = var_pattern.sub(r'*\g<var>', eval_str)
-
-    # This way is much much slower
-    # def B(state):
-    #   values_name=get_values_name(len(state))
-    #   assert len(variables) == len(values_name)
-    #   eval_str1 = eval_str
-    #   for var, val in zip(variables, values_name):
-    #     eval_str1 = re.sub(var, val, eval_str1)
-    #   return eval(eval_str1)
-
-    args_str = ""
-    for arg in variables:
-        args_str += (arg+",")
-    args_str = args_str[:-1]
-    #print args_str
-    #print eval_str
-    if enable_jit:
-        from numba import jit, float64
-        exec(("@jit"+"(float64 ({}))"+"\ndef B({}): return {}").format(
-            ("float64,"*vars_num)[:-1], args_str, eval_str))
-    else:
-        exec("""def B({}): return {}""".format(args_str, eval_str))
-
-    return B
-
-def barrier_certificate_str2z3(bc_str, vars_num):
-    """transform julia barrier string to what z3 and python can understand
-
-    Args:
-        bc_str (str): string
-    """
-    eval_str = re.sub("\^", r"**", bc_str)
-
-    var_pattern = re.compile(r"(?P<var>x\d*)")
-    eval_str = var_pattern.sub(r'*\g<var>', eval_str)
-
-    # substitute x1 to x[0], ..., x[n] to x[n-1]
-    for i in range(vars_num):
-        eval_str = eval_str.replace("x"+str(i+1), "x[" + str(i) + "]")
-    # polynomial function's value should be less than 0.
-    eval_str = eval_str + " <= 0"
-
-    return eval_str
-
-def get_values_name(vars_num):
-    return ["state["+str(i)+"][0]" for i in xrange(vars_num)]
-
-def state2list(state):
-    return [x[0] for x in state.tolist()]
-

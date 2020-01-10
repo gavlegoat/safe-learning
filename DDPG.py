@@ -149,7 +149,6 @@ class CriticNetwork(object):
     """
     Input to the network is the state and action, output is Q(s,a).
     The action must be obtained from the output of the Actor network.
-
     """
 
     def __init__(self, sess, critic_structure, state_dim, action_dim,
@@ -284,6 +283,8 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
           replay_buffer=None, safe_training=False, rewardf=None, shields=1,
           initial_shield=None):
 
+    print "Started training"
+
     # Initialize target network weights
     actor.update_target_network()
     critic.update_target_network()
@@ -303,18 +304,29 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
     reward_list = []
 
     if safe_training:
-        #shield = Shield(env, actor)
-        #shield.train_shield("random_search", 500, 50, rewardf=rewardf,
-        #        without_nn_guide=True)
         shield = initial_shield
         shield_penalty = env.bad_reward / 100.0
         shield_iters = (int(args['max_episodes']) + 1) / shields
+        s_reward = 0.0
+        for i in range(50):
+            s = env.reset()
+            for j in range(int(args['max_episode_len'])):
+                u = shield.call_shield(s)
+                s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
+                s_reward += r
+                s = s2
+                if terminal:
+                    s = env.reset()
+        s_reward /= 50.0
+        print "Average initial shield reward:", s_reward
 
     for i in range(int(args['max_episodes'])):
         s = env.reset()
         ep_reward = 0
         ep_ave_max_q = 0
         #temp_r = env.bad_reward
+
+        log = []
 
         for j in range(int(args['max_episode_len'])):
             # Added exploration noise
@@ -323,18 +335,25 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
             shield_required = False
             if safe_training and shield.detector(s, a.reshape(actor.a_dim, 1)):
                 shield_required = True
-                a = shield.call_shield(s, mute=True)
+                try:
+                    a = shield.call_shield(s)
+                except RuntimeError:
+                    print "s, a, r, s2, shield_required, terminal"
+                    print log
+                    raise RuntimeError("")
 
             s2, r, terminal = env.step(a.reshape(actor.a_dim, 1))
 
-            if safe_training and shield_required:
-                r -= shield_penalty
+            #if safe_training and shield_required:
+            #    r -= shield_penalty
 
             # if r > temp_r:
             #   temp_r = r
             replay_buffer.add(np.reshape(np.array(s), (actor.s_dim,)),
                     np.reshape(np.array(a), (actor.a_dim,)), r,
                     terminal, np.reshape(np.array(s2), (actor.s_dim, )))
+
+            log.append((s, a, r, s2, shield_required, terminal))
 
             # Keep adding experience to the memory until
             # there are at least minibatch size samples
@@ -402,10 +421,20 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
 
         if safe_training and (i + 1) % shield_iters == 0:
             old_shield = shield
-            shield = Shield(env, actor)
-            shield.train_shield("lqr", 500, 50, rewardf=rewardf,
-                    nn_weight=float(i)/int(args['max_episodes']),
-                    old_shield=old_shield)
+            shield.train_shield(old_shield, actor, bound=int(args['max_episode_len']))
+            print 'Learned a new shield'
+            s_reward = 0.0
+            for i in range(50):
+                s = env.reset()
+                for j in range(int(args['max_episode_len'])):
+                    u = shield.call_shield(s)
+                    s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
+                    s_reward += r
+                    s = s2
+                    if terminal:
+                        s = env.reset()
+            s_reward /= 50.0
+            print "New shield reward:", s_reward
 
     print 'min reward:', last_reward
     if last_reward == env.bad_reward:
@@ -414,10 +443,34 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
     final_model = model_path+'final_model.chkp'
     restorer.save(sess, final_model)
     print 'sess has been saved to', final_model
+    s_reward = 0.0
+    for i in range(50):
+        s = env.reset()
+        log = []
+        for j in range(int(args['max_episode_len'])):
+            u = actor.predict(np.reshape(s, (1, actor.s_dim))) + actor_noise()
+            shield_required = False
+            if safe_training and shield.detector(s, a.reshape(actor.a_dim, 1)):
+                shield_required = True
+                try:
+                    u = shield.call_shield(s)
+                except RuntimeError:
+                    print "s, a, r, s2, shield_required, terminal"
+                    print log
+                    raise RuntimeError("")
+            s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
+            if r == env.bad_reward:
+                print s, u, s2, shield_required
+                raise RuntimeError("Unsafe state reached")
+            log.append((s, u, r, s2, shield_required, terminal))
+            s_reward += r
+            s = s2
+            if terminal:
+                s = env.reset()
+    s_reward /= 50.0
+    print "Average final combined reward:", s_reward
 
-    # At the end of training I want to test the initial shield
-    #print "Testing initial shield after training:"
-    #shield.test_shield(100, 5000, mode="single")
+    return shield
 
 @timeit
 def test(env, actor, args, actor_noise):
@@ -481,20 +534,20 @@ def DDPG(env, args, replay_buffer=None, safe_training=False, rewardf=None,
     sess.run(tf.global_variables_initializer())
     restorer = tf.train.Saver(tf.global_variables())
 
-    if tf.train.checkpoint_exists(args['model_path']):
-        restorer.restore(sess, args['model_path'])
-        print 'sess has been restored from', args['model_path']
+    #if tf.train.checkpoint_exists(args['model_path']):
+    #    restorer.restore(sess, args['model_path'])
+    #    print 'sess has been restored from', args['model_path']
 
     actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_dim))
 
-    train(sess, env, args, actor, critic, actor_noise, restorer, replay_buffer,
-            safe_training, rewardf=rewardf, shields=shields,
+    shield = train(sess, env, args, actor, critic, actor_noise, restorer,
+            replay_buffer, safe_training, rewardf=rewardf, shields=shields,
             initial_shield=initial_shield)
 
     if args['enable_test']:
         test(env, actor, args, actor_noise)
 
-    return actor
+    return actor, shield
 
 @timeit
 def actor_boundary(env, actor, epsoides=1000, steps=100):

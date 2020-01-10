@@ -10,7 +10,8 @@ import argparse
 def suspension (learning_method, number_of_rollouts, simulation_steps,
         learning_eposides, critic_structure, actor_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
-        test_episodes=100, retrain_nn=False, safe_training=False, shields=1):
+        test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
+        episode_len=100):
     A = np.matrix([
       [0.02366,-0.31922,0.0012041,-4.0292e-17],
       [0.25,0,0,0],
@@ -49,7 +50,7 @@ def suspension (learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': 1000,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -65,7 +66,7 @@ def suspension (learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 100,
+                 'max_episode_len': episode_len,
                  'max_episodes': learning_eposides,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -88,7 +89,7 @@ def suspension (learning_method, number_of_rollouts, simulation_steps,
     shield.train_shield(learning_method, number_of_rollouts, simulation_steps,
             eq_err=0, explore_mag=0.0004, step_size=0.0005)
     if shield_test:
-        shield.test_shield(test_episodes, 500, mode="single")
+        shield.test_shield(actor, test_episodes, 500, mode="single")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Running Options')
@@ -103,6 +104,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -113,9 +115,10 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     suspension("random_search", 100, 50, 0, [240,200], [280,240,200],
             "ddpg_chkp/suspension/240200280240200/", nn_test=nn_test,
             retrain_shield=retrain_shield, shield_test=shield_test,
             test_episodes=test_episodes, retrain_nn=retrain_nn,
-            safe_training=safe_training, shields=shields)
+            safe_training=safe_training, shields=shields, episode_len=ep_len)

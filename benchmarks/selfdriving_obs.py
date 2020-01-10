@@ -11,7 +11,8 @@ import argparse
 def selfdrive(learning_method, number_of_rollouts, simulation_steps,
         learning_eposides, critic_structure, actor_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
-        test_episodes=100, retrain_nn=False, safe_training=False, shields=1):
+        test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
+        episode_len=1000):
 
     A = np.matrix([
       [ 0., 0., 1., 0.],
@@ -56,7 +57,7 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure, 
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 1000,
+                 'max_episode_len': episode_len,
                  'max_episodes': 1000,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -72,7 +73,7 @@ def selfdrive(learning_method, number_of_rollouts, simulation_steps,
                  'critic_structure': critic_structure, 
                  'buffer_size': 1000000,
                  'gamma': 0.99,
-                 'max_episode_len': 1000,
+                 'max_episode_len': episode_len,
                  'max_episodes': learning_eposides,
                  'minibatch_size': 64,
                  'random_seed': 6553,
@@ -114,6 +115,7 @@ if __name__ == "__main__":
     parser.add_argument('--safe_training', action="store_true",
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
+    parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -124,9 +126,10 @@ if __name__ == "__main__":
     safe_training = parser_res.safe_training \
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
+    ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
 
     selfdrive("random_search", 100, 200, 0, [64, 64], [64, 64],
             "ddpg_chkp/perfect_model/selfdriving/64646464/", nn_test=nn_test,
             retrain_shield=retrain_shield, shield_test=shield_test,
             test_episodes=test_episodes, retrain_nn=retrain_nn,
-            safe_training=safe_training, shields=shields)
+            safe_training=safe_training, shields=shields, episode_len=ep_len)
