@@ -243,7 +243,7 @@ class Shield(object):
             if (A * n <= b).all():
                 # We are inside the invariant of some piece of the shield
                 self.last_shield = -1
-                print A, b, n, A * n
+                # print A, b, n, A * n
                 return False
         return True
 

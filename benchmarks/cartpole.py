@@ -53,7 +53,7 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
                  'max_episode_len': episode_len,
-                 'max_episodes': 1000,   # Originally 1000
+                 'max_episodes': 10000,   # Originally 1000
                  'minibatch_size': 64,
                  'random_seed': 6553,
                  'tau': 0.005,
