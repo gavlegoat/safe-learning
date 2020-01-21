@@ -1,7 +1,7 @@
 #include <optional>
 #include <random>
 
-#include <glpk.h>
+//#include <glpk.h>
 #include <Python.h>
 
 #include "abstract.hpp"
@@ -682,13 +682,41 @@ double measure_similarity(const Eigen::MatrixXd& mat, const Space& cover,
     PyErr_PrintEx(0);
     throw std::runtime_error("Callback failed");
   }
-  PyObject* score = PyTuple_GetItem(res, 0);
+  PyObject* score = PyTuple_GetItem(res, 1);
   Py_XDECREF(dataset);
-  dataset = PyTuple_GetItem(res, 1);
+  dataset = PyTuple_GetItem(res, 2);
   // Dataset here is a borrowed reference but we need it to be separate.
   Py_INCREF(dataset);
   Py_DECREF(args);
   double ret = PyFloat_AsDouble(score);
+  Py_DECREF(res);
+  return ret;
+}
+
+Eigen::MatrixXd get_gradient(const Eigen::MatrixXd& mat, const Space& cover,
+    PyObject* measure, PyObject* dataset) {
+  PyObject* K = matrix_to_pylist(mat);
+  PyObject* s = Py_BuildValue("NNNN", matrix_to_pylist(cover.space.weights),
+      vector_to_pylist(cover.space.biases), vector_to_pylist(cover.bb_lower),
+      vector_to_pylist(cover.bb_upper));
+  PyObject* args;
+  if (dataset == NULL) {
+    args = Py_BuildValue("NNO", K, s, Py_None);
+  } else {
+    args = Py_BuildValue("NNO", K, s, dataset);
+  }
+  PyObject* res = PyObject_CallObject(measure, args);
+  if (PyErr_Occurred()) {
+    PyErr_PrintEx(0);
+    throw std::runtime_error("Callback failed");
+  }
+  Py_XDECREF(dataset);
+  dataset = PyTuple_GetItem(res, 2);
+  // Dataset here is a borrowed reference but we need it to be separate.
+  Py_INCREF(dataset);
+  Py_DECREF(args);
+  PyObject* grads = PyTuple_GetItem(res, 0);
+  Eigen::VectorXd ret = pylist_to_matrix(grads);
   Py_DECREF(res);
   return ret;
 }
@@ -702,6 +730,7 @@ double measure_similarity(const Eigen::MatrixXd& mat, const Space& cover,
  * \param lc The linear constraints to bound.
  * \returns The linear constraint together with a bounding box.
  */
+/*
 Space lincons_to_space(const LinCons& lc) {
   // At the moment this is just based on a series of linear programming
   // problems with simple objectives.
@@ -770,6 +799,7 @@ Space lincons_to_space(const LinCons& lc) {
   }
   return Space { .space = lc, .bb_lower = bb_l, .bb_upper = bb_u };
 }
+*/
 
 /**
  * Measure the contribution of one disjunct to the loss function.
@@ -833,13 +863,13 @@ std::optional<Controller> synthesize_linear_controller(
     const std::vector<LinCons>& other_covers, const Eigen::MatrixXd& initial,
     PyObject* measure) {
   Eigen::MatrixXd k = initial;
-  double lr = 0.005;
-  double v = 0.04;
-  int steps_per_projection = 15;
+  double lr = 0.001;
+  double v = 0.1;
+  int steps_per_projection = 50;
   PyObject* dataset = NULL;
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 30; i++) {
     std::optional<Interval> safe = compute_safe_space(
-        env, cover, other_covers, k, steps_per_projection * lr, bound);
+        env, cover, other_covers, k, steps_per_projection * lr / 2.5, bound);
     if (!safe) {
       // We can't compute a safe space, but we can just return the existing
       // controller because we know it is at least safe.
@@ -850,17 +880,22 @@ std::optional<Controller> synthesize_linear_controller(
       };
     }
 
+    double ave_grad_size = 0;
     // Gradient steps
     for (int j = 0; j < steps_per_projection; j++) {
-      Eigen::MatrixXd delta = Eigen::MatrixXd::Random(k.rows(), k.cols());
-      double sim_plus = measure_similarity(k + v * delta, cover, measure,
-          dataset);
-      double sim_minus = measure_similarity(k - v * delta, cover, measure,
-          dataset);
-      Eigen::MatrixXd grad = (sim_plus - sim_minus) / v * delta;
+      //Eigen::MatrixXd delta = Eigen::MatrixXd::Random(k.rows(), k.cols());
+      //double sim_plus = measure_similarity(k + v * delta, cover, measure,
+      //    dataset);
+      //double sim_minus = measure_similarity(k - v * delta, cover, measure,
+      //    dataset);
+      //Eigen::MatrixXd grad = (sim_plus - sim_minus) / v * delta;
+      Eigen::MatrixXd grad = -get_gradient(k, cover, measure, dataset);
+      ave_grad_size += grad.norm();
       k += lr * grad;
       k = k.cwiseMax(safe.value().lower).cwiseMin(safe.value().upper);
     }
+    ave_grad_size /= steps_per_projection;
+    std::cout << "Average gradient size in batch " << i << ": " << ave_grad_size << std::endl;
   }
   LinCons inv = env.compute_invariant(cover, bound, other_covers, k);
   Py_XDECREF(dataset);

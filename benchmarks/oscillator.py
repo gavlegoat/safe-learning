@@ -9,10 +9,10 @@ import argparse
 
 # Show that there is an invariant that can prove the policy safe
 def oscillator(learning_method, number_of_rollouts, simulation_steps,
-        learning_eposides, critic_structure, actor_structure, train_dir,
+        learning_episodes, critic_structure, actor_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
         test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
-        episode_len=100):
+        episode_len=100, penalty_ratio=0.1):
 
     # 10-dimension and 1-input system and 1-disturbance system
     ds = 18
@@ -164,7 +164,7 @@ def oscillator(learning_method, number_of_rollouts, simulation_steps,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
                  'max_episode_len': episode_len,
-                 'max_episodes': 1000,
+                 'max_episodes': learning_episodes,
                  'minibatch_size': 64,
                  'random_seed': 6553,
                  'tau': 0.005,
@@ -198,9 +198,9 @@ def oscillator(learning_method, number_of_rollouts, simulation_steps,
 
     shield = Shield(env, actor, model_path=model_path,
             force_learning=retrain_shield)
-    shield.train_polysys_shield(learning_method, number_of_rollouts,
-            simulation_steps, eq_err=eq_err, explore_mag=0.4, step_size=0.5,
-            enable_jit=False)
+    #shield.train_polysys_shield(learning_method, number_of_rollouts,
+    #        simulation_steps, eq_err=eq_err, explore_mag=0.4, step_size=0.5,
+    #        enable_jit=False)
     if shield_test:
         shield.test_shield(test_episodes, 5000, mode="single", shield_combo=1)
     actor.sess.close()

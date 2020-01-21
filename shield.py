@@ -151,6 +151,8 @@ class Shield(object):
             b = np.matrix(map(lambda x: [x], space[1]))
             lower = np.matrix(map(lambda x: [x], space[2]))
             upper = np.matrix(map(lambda x: [x], space[3]))
+            contr = np.matrix(K)
+            grad = np.zeros_like(K)
             total = 0.0
             for _ in range(50):
                 # sample an initial state from the cover of this controller
@@ -173,8 +175,8 @@ class Shield(object):
                     #    print b
                 diff = 0.0
                 for _ in range(30):
-                    u_n = actor.predict(x.transpose())
-                    u_k = K * x
+                    u_n = actor.predict(x.transpose()).T
+                    u_k = contr * x
                     diff += np.linalg.norm(u_n - u_k)
                     if isinstance(self.env, Environment.Environment):
                         xp = self.env.A * x + self.env.B * u_k
@@ -185,7 +187,8 @@ class Shield(object):
                     else:
                         x = xp
                 total += diff / 30
-            return (-total / 100, dataset)
+                grad += (1.0 / 30) * (u_k - u_n) * x.T
+            return ((0.01 * grad).tolist(), -total / 100, dataset)
 
         ret = synthesis.synthesize_shield(env, covers, controllers,
                 bound, measure)

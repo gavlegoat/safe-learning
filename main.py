@@ -9,7 +9,7 @@ from pympc.dynamics.discrete_time_systems import LinearSystem
 from pympc.plot import plot_state_space_trajectory
 
 from vcsos import *
-from z3verify import verify_controller_z3,bounded_z3
+#from z3verify import verify_controller_z3,bounded_z3
 
 import scipy.linalg as la
 from pympc.dynamics.discrete_time_systems import mcais

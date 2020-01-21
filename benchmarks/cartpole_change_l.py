@@ -8,10 +8,10 @@ from shield import Shield
 import argparse
 
 def cartpole(learning_method, number_of_rollouts, simulation_steps,
-        ddpg_learning_eposides, critic_structure, actor_structure, train_dir,
+        learning_episodes, critic_structure, actor_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
         test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
-        episode_len=100):
+        episode_len=100, penalty_ratio=0.1):
     l = .22 + 0.15 # rod length is 2l
     m = (2*l) * (.006**2) * (3.14/4) * (7856)
     # rod 6 mm diameter, 44cm length, 7856 kg/m^3
@@ -58,7 +58,7 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
                  'max_episode_len': episode_len,
-                 'max_episodes': 5000,
+                 'max_episodes': learning_episodes,
                  'minibatch_size': 64,
                  'random_seed': 6553,
                  'tau': 0.005,
@@ -104,7 +104,7 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
 
     actor, shield = DDPG(env, args, rewardf=safety_reward,
             safe_training=safe_training, shields=shields,
-            initial_shield=initial_shield)
+            initial_shield=initial_shield, penalty_ratio=penalty_ratio)
 
     #################### Shield #################
     model_path = os.path.split(args['model_path'])[0]+'/'
@@ -116,9 +116,9 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
 
     names = {0:"cart position, meters", 1:"cart velocity",
             2:"pendulum angle, radians", 3:"pendulum angle velocity"}
-    shield = Shield(env, actor, model_path, force_learning=retrain_shield)
-    shield.train_shield(learning_method, number_of_rollouts, simulation_steps,
-            rewardf=rewardf, names=names, explore_mag=2.0, step_size=2.0)
+    #shield = Shield(env, actor, model_path, force_learning=retrain_shield)
+    #shield.train_shield(learning_method, number_of_rollouts, simulation_steps,
+    #        rewardf=rewardf, names=names, explore_mag=2.0, step_size=2.0)
     if shield_test:
         shield.test_shield(test_episodes, 5000, mode="single")
 
@@ -138,6 +138,8 @@ if __name__ == "__main__":
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
     parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
+    parser.add_argument('--max_episodes', action="store", dest="eps", type=int)
+    parser.add_argument('--penalty_ratio', action="store", dest="ratio", type=float)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -149,10 +151,12 @@ if __name__ == "__main__":
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
     ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
+    eps = parser_res.eps if parser_res.eps is not None else 1000
+    ratio = parser_res.ratio if parser_res.ratio is not None else 0.1
 
-    cartpole("random_search", 200, 200, 0, [1200,900], [1000,900,800],
+    cartpole("random_search", 200, 200, eps, [1200,900], [1000,900,800],
             "ddpg_chkp/cartpole_change_l/", nn_test=nn_test,
             retrain_shield=retrain_shield, shield_test=shield_test,
             test_episodes=test_episodes, retrain_nn=retrain_nn,
             safe_training=safe_training, shields=shields,
-            episode_len=ep_len)
+            episode_len=ep_len, penalty_ratio=ratio)

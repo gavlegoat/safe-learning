@@ -11,10 +11,10 @@ import argparse
 
 
 def carplatoon(learning_method, number_of_rollouts, simulation_steps,
-        learning_eposides, actor_structure, critic_structure, train_dir,
+        learning_episodes, actor_structure, critic_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
         test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
-        episode_len=100):
+        episode_len=100, penalty_ratio=0.1):
 
     A = np.matrix([
       [1,0,0,0,0,0,0],
@@ -69,7 +69,7 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps,
              'buffer_size': 1000000,
              'gamma': 0.99,
              'max_episode_len': episode_len,
-             'max_episodes': 10000,   # originally 1000
+             'max_episodes': learning_episodes,   # originally 1000
              'minibatch_size': 64,
              'random_seed': 6553,
              'tau': 0.005,
@@ -117,7 +117,7 @@ def carplatoon(learning_method, number_of_rollouts, simulation_steps,
 
     actor, shield = DDPG(env, args, rewardf=shield_reward,
             safe_training=safe_training,
-            shields=shields, initial_shield=initial_shield)
+            shields=shields, initial_shield=initial_shield, penalty_ratio=penalty_ratio)
 
     #################### Shield #################
     model_path = os.path.split(args['model_path'])[0]+'/'
@@ -147,6 +147,8 @@ if __name__ == "__main__":
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
     parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
+    parser.add_argument('--max_episodes', action="store", dest="eps", type=int)
+    parser.add_argument('--penalty_ratio', action="store", dest="ratio", type=float)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -158,11 +160,13 @@ if __name__ == "__main__":
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
     ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
+    eps = parser_res.eps if parser_res.eps is not None else 1000
+    ratio = parser_res.ratio if parser_res.ratio is not None else 0.1
 
-    carplatoon("random_search", 200, 100, 0, [500, 400, 300],
+    carplatoon("random_search", 200, 100, eps, [500, 400, 300],
             [600, 500, 400, 300],
             "ddpg_chkp/car-platoon/discrete/4/500400300600500400300/",
             nn_test=nn_test, retrain_shield=retrain_shield,
             shield_test=shield_test, test_episodes=test_episodes,
             retrain_nn=retrain_nn, safe_training=safe_training,
-            shields=shields, episode_len=ep_len)
+            shields=shields, episode_len=ep_len, penalty_ratio=ratio)

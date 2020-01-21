@@ -1,4 +1,5 @@
 import sys
+sys.path.append(".")
 
 from main import *
 from Environment import Environment
@@ -11,7 +12,7 @@ def satelite(learning_method, number_of_rollouts, simulation_steps,
         critic_structure, actor_structure, train_dir, nn_test=False,
         retrain_shield=False, shield_test=False, test_episodes=100,
         retrain_nn=False, safe_training=False, shields=1,
-        episode_len=100):
+        episode_len=100, penalty_ratio=0.1, learning_episodes=1000):
     A = np.matrix([[2,-1],
       [1,0]
       ])
@@ -54,7 +55,7 @@ def satelite(learning_method, number_of_rollouts, simulation_steps,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
                  'max_episode_len': episode_len,
-                 'max_episodes': 1000,
+                 'max_episodes': learning_episodes,
                  'minibatch_size': 64,
                  'random_seed': 6553,
                  'tau': 0.005,
@@ -89,13 +90,12 @@ def satelite(learning_method, number_of_rollouts, simulation_steps,
 
     actor, shield = DDPG(env, args, rewardf=safety_reward,
             safe_training=safe_training,
-            shields=shields, initial_shield=initial_shield)
+            shields=shields, initial_shield=initial_shield, penalty_ratio=penalty_ratio)
 
     #################### Shield #################
     model_path = os.path.split(args['model_path'])[0]+'/'
     linear_func_model_name = 'K.model'
-    model_path = model_path+linear_func_model_name+'.npy'
-
+    model_path = model_path+linear_func_model_name+'.npy' 
     if shield_test:
       shield.test_shield(actor, test_episodes, 500)
 
@@ -113,6 +113,8 @@ if __name__ == "__main__":
             dest="safe_training")
     parser.add_argument('--shields', action="store", dest="shields", type=int)
     parser.add_argument('--episode_len', action="store", dest="ep_len", type=int)
+    parser.add_argument('--max_episodes', action="store", dest="eps", type=int)
+    parser.add_argument('--penalty_ratio', action="store", dest="ratio", type=float)
     parser_res = parser.parse_args()
     nn_test = parser_res.nn_test
     retrain_shield = parser_res.retrain_shield
@@ -124,9 +126,12 @@ if __name__ == "__main__":
             if parser_res.safe_training is not None else False
     shields = parser_res.shields if parser_res.shields is not None else 1
     ep_len = parser_res.ep_len if parser_res.ep_len is not None else 50
+    eps = parser_res.eps if parser_res.eps is not None else 1000
+    ratio = parser_res.ratio if parser_res.ratio is not None else 0.1
 
     satelite("random_search", 200, 100, [240,200], [280,240,200],
       "ddpg_chkp/satelite/240200280240200/", nn_test=nn_test,
       retrain_shield=retrain_shield, shield_test=shield_test,
       test_episodes=test_episodes, retrain_nn=retrain_nn,
-      safe_training=safe_training, shields=shields, episode_len=ep_len)
+      safe_training=safe_training, shields=shields, episode_len=ep_len,
+      penalty_ratio=ratio, learning_episodes=eps)

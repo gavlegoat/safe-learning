@@ -281,7 +281,7 @@ class OrnsteinUhlenbeckActionNoise:
 @timeit
 def train(sess, env, args, actor, critic, actor_noise, restorer,
           replay_buffer=None, safe_training=False, rewardf=None, shields=1,
-          initial_shield=None):
+          initial_shield=None, penalty_ratio=0.1):
 
     print "Started training"
 
@@ -305,7 +305,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
 
     if safe_training:
         shield = initial_shield
-        shield_penalty = env.bad_reward / 2.0
+        shield_penalty = env.bad_reward * penalty_ratio
         shield_iters = (int(args['max_episodes']) + 1) / shields
         s_reward = 0.0
         for i in range(50):
@@ -335,20 +335,19 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
             shield_required = False
             if safe_training and shield.detector(s, a.reshape(actor.a_dim, 1)):
                 shield_required = True
-                if random.uniform(0.0, 1.0) < 0.9:
-                    try:
-                        a = shield.call_shield(s)
-                    except RuntimeError:
-                        s = env.reset()
-                        continue
-                        #print "s, a, r, s2, shield_required, terminal"
-                        #print log
-                        #raise RuntimeError("")
+                #try:
+                #    a = shield.call_shield(s)
+                #except RuntimeError:
+                #    s = env.reset()
+                #    continue
+                #    #print "s, a, r, s2, shield_required, terminal"
+                #    #print log
+                #    #raise RuntimeError("")
 
             s2, r, terminal = env.step(a.reshape(actor.a_dim, 1))
 
             if safe_training and shield_required:
-                r += shield_penalty
+                r = shield_penalty
 
             # if r > temp_r:
             #   temp_r = r
@@ -394,7 +393,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
             s = s2
             ep_reward += r
 
-            if terminal:
+            if terminal or shield_required:
                 # print "Termainal at step", j
                 if j < int(args['max_episode_len']):
                     s = env.reset()
@@ -449,8 +448,10 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
     print 'sess has been saved to', final_model
     s_reward = 0.0
     unsafe_count = 0
+    total_runs = 0
     for i in range(50):
         s = env.reset()
+        total_runs += 1
         log = []
         for j in range(int(args['max_episode_len'])):
             u = actor.predict(np.reshape(s, (1, actor.s_dim))) + actor_noise()
@@ -468,14 +469,16 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
             #    print s, u, s2, shield_required
             #    raise RuntimeError("Unsafe state reached")
                 unsafe_count += 1
+            else:
+                s_reward += r
             log.append((s, u, r, s2, shield_required, terminal))
-            s_reward += r
             s = s2
             if terminal:
                 s = env.reset()
+                total_runs += 1
     s_reward /= 50.0
     print "Average final combined reward:", s_reward
-    print "Runs ending in an unsafe state:", unsafe_count
+    print "Runs ending in an unsafe state:", unsafe_count, "out of", total_runs
 
     return shield
 
@@ -517,7 +520,7 @@ def test(env, actor, args, actor_noise):
 
 
 def DDPG(env, args, replay_buffer=None, safe_training=False, rewardf=None,
-        shields=1, initial_shield=None):
+        shields=1, initial_shield=None, penalty_ratio=0.1):
     sess = tf.Session()
     np.random.seed(int(args['random_seed']))
     tf.set_random_seed(int(args['random_seed']))
@@ -549,7 +552,7 @@ def DDPG(env, args, replay_buffer=None, safe_training=False, rewardf=None,
 
     shield = train(sess, env, args, actor, critic, actor_noise, restorer,
             replay_buffer, safe_training, rewardf=rewardf, shields=shields,
-            initial_shield=initial_shield)
+            initial_shield=initial_shield, penalty_ratio=penalty_ratio)
 
     if args['enable_test']:
         test(env, actor, args, actor_noise)
