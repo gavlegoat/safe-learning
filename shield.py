@@ -67,11 +67,11 @@ class Shield(object):
             safe_max = self.env.x_max
             for i in range(len(safe_min)):
                 A = [[0.0] * len(safe_min)]
-                A[0][i] = -1.0
-                b = [-safe_min[i]]
-                unsafe_space.append((A, b))
                 A[0][i] = 1.0
-                b = [safe_max[i]]
+                b = [safe_min[i]]
+                unsafe_space.append((A, b))
+                A[0][i] = -1.0
+                b = [-safe_max[i]]
                 unsafe_space.append((A, b))
             env = (self.env.A.tolist(), self.env.B.tolist(),
                     self.env.continuous, dt, unsafe_space)
@@ -118,11 +118,11 @@ class Shield(object):
             safe_max = self.env.x_max
             for i in range(len(safe_min)):
                 A = [[0.0] * len(safe_min)]
-                A[0][i] = -1.0
-                b = [-safe_min[i]]
-                unsafe_space.append((A, b))
                 A[0][i] = 1.0
-                b = [safe_max[i]]
+                b = [safe_min[i]]
+                unsafe_space.append((A, b))
+                A[0][i] = -1.0
+                b = [-safe_max[i]]
                 unsafe_space.append((A, b))
             env = (self.env.A.tolist(), self.env.B.tolist(),
                     self.env.continuous, dt, unsafe_space)
@@ -154,7 +154,8 @@ class Shield(object):
             contr = np.matrix(K)
             grad = np.zeros_like(K)
             total = 0.0
-            for _ in range(50):
+            its = 10
+            for _ in range(its):
                 # sample an initial state from the cover of this controller
                 iters = 0
                 while True:
@@ -173,11 +174,11 @@ class Shield(object):
                     #    print x
                     #    print A * x
                     #    print b
-                diff = 0.0
-                for _ in range(30):
+                length = 10
+                for _ in range(length):
                     u_n = actor.predict(x.transpose()).T
                     u_k = contr * x
-                    diff += np.linalg.norm(u_n - u_k)
+                    diff = np.linalg.norm(u_n - u_k)
                     if isinstance(self.env, Environment.Environment):
                         xp = self.env.A * x + self.env.B * u_k
                     else:
@@ -186,9 +187,9 @@ class Shield(object):
                         x = x + self.env.timestep * xp
                     else:
                         x = xp
-                total += diff / 30
-                grad += (1.0 / 30) * (u_k - u_n) * x.T
-            return ((0.01 * grad).tolist(), -total / 100, dataset)
+                    total += diff / length
+                    grad += (1.0 / length) * (u_k - u_n) * x.T
+            return (((1.0 / its) * grad).tolist(), -total / its, dataset)
 
         ret = synthesis.synthesize_shield(env, covers, controllers,
                 bound, measure)

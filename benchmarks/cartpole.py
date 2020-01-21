@@ -79,7 +79,7 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
 
     #P = scipy.linalg.solve_continuous_are(A, B, Q, R)
     #Ks = [-np.linalg.inv(R) * B.T * P]
-    Ks = [np.matrix([[-3, 0, 0, 0]]), np.matrix([[0, 0, -3, 0]])]
+    Ks = [np.matrix([[-2, 0, 0, 0]]), np.matrix([[0, 0, -2, 0]])]
     mat = np.matrix(np.zeros((9, 4)))
     bias = np.matrix(np.zeros((9, 1)))
     lower = np.matrix(np.zeros((4, 1)))

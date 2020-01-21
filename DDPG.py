@@ -308,16 +308,17 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
         shield_penalty = env.bad_reward * penalty_ratio
         shield_iters = (int(args['max_episodes']) + 1) / shields
         s_reward = 0.0
-        for i in range(50):
+        for i in range(100):
             s = env.reset()
             for j in range(int(args['max_episode_len'])):
                 u = shield.call_shield(s)
                 s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
-                s_reward += r
+                if r != env.bad_reward:
+                    s_reward += r
                 s = s2
                 if terminal:
                     s = env.reset()
-        s_reward /= 50.0
+        s_reward /= 100.0
         print "Average initial shield reward:", s_reward
 
     for i in range(int(args['max_episodes'])):
@@ -424,19 +425,20 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
         if safe_training and (i + 1) % shield_iters == 0:
             old_shield = shield
             #shield.train_shield(old_shield, actor, bound=int(args['max_episode_len']))
-            shield.train_shield(old_shield, actor, bound=25)
+            shield.train_shield(old_shield, actor, bound=10)
             print 'Learned a new shield'
             s_reward = 0.0
-            for i in range(50):
+            for i in range(100):
                 s = env.reset()
                 for j in range(int(args['max_episode_len'])):
                     u = shield.call_shield(s)
                     s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
-                    s_reward += r
+                    if r != env.bad_reward:
+                        s_reward += r
                     s = s2
                     if terminal:
                         s = env.reset()
-            s_reward /= 50.0
+            s_reward /= 100.0
             print "New shield reward:", s_reward
 
     print 'min reward:', last_reward
@@ -449,7 +451,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
     s_reward = 0.0
     unsafe_count = 0
     total_runs = 0
-    for i in range(50):
+    for i in range(100):
         s = env.reset()
         total_runs += 1
         log = []
@@ -476,7 +478,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
             if terminal:
                 s = env.reset()
                 total_runs += 1
-    s_reward /= 50.0
+    s_reward /= 100.0
     print "Average final combined reward:", s_reward
     print "Runs ending in an unsafe state:", unsafe_count, "out of", total_runs
 

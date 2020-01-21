@@ -332,11 +332,14 @@ bool interval_is_safe(const Interval& itv, const Environment& env,
     int bound) {
   auto state = std::make_unique<AbstractVal>(ABSTRACT_DOMAIN,
       cover.space);
+  //std::cout << "Verifying interval" << std::endl;
+  //std::cout << itv.lower.transpose() << std::endl;
+  //std::cout << itv.upper.transpose() << std::endl;
   if (bound > 0) {
     for (int i = 0; i < bound; i++) {
-      //auto next = env.abstract_step(*state, itv);
-      //state = state->join(*next);
-      state = env.abstract_step(*state, itv);
+      //state->print(stdout);
+      auto next = env.abstract_step(*state, itv);
+      state = state->join(*next);
     }
   } else {
     while (true) {
@@ -350,6 +353,11 @@ bool interval_is_safe(const Interval& itv, const Environment& env,
   }
   for (const LinCons& lc : env.unsafe_space) {
     if (!state->meet_linear_constraint(lc.weights, lc.biases)->is_bottom()) {
+      //auto t = state->meet_linear_constraint(lc.weights, lc.biases);
+      //std::cout << lc.weights << std::endl;
+      //std::cout << lc.biases << std::endl;
+      //t->print(stdout);
+      //throw std::runtime_error("");
       return false;
       // FUTURE: Deal with covers
     }
@@ -553,7 +561,7 @@ std::optional<Interval> compute_safe_space(
       }
     }
     iters++;
-    if (iters > 10) {
+    if (iters > 20) {
       return {};
     }
   }
@@ -716,7 +724,7 @@ Eigen::MatrixXd get_gradient(const Eigen::MatrixXd& mat, const Space& cover,
   Py_INCREF(dataset);
   Py_DECREF(args);
   PyObject* grads = PyTuple_GetItem(res, 0);
-  Eigen::VectorXd ret = pylist_to_matrix(grads);
+  Eigen::MatrixXd ret = pylist_to_matrix(grads);
   Py_DECREF(res);
   return ret;
 }
@@ -862,8 +870,9 @@ std::optional<Controller> synthesize_linear_controller(
     const Environment& env, const Space& cover, int bound,
     const std::vector<LinCons>& other_covers, const Eigen::MatrixXd& initial,
     PyObject* measure) {
+  //std::cout << "synthesize_linear_controller" << std::endl;
   Eigen::MatrixXd k = initial;
-  double lr = 0.001;
+  double lr = 0.01;
   double v = 0.1;
   int steps_per_projection = 50;
   PyObject* dataset = NULL;
@@ -873,6 +882,7 @@ std::optional<Controller> synthesize_linear_controller(
     if (!safe) {
       // We can't compute a safe space, but we can just return the existing
       // controller because we know it is at least safe.
+      //std::cout << "can't find a safe controller" << std::endl;
       return Controller {
         .k = k,
         .invariant = env.compute_invariant(cover, bound, other_covers, k),
@@ -880,7 +890,7 @@ std::optional<Controller> synthesize_linear_controller(
       };
     }
 
-    double ave_grad_size = 0;
+    //double ave_grad_size = 0;
     // Gradient steps
     for (int j = 0; j < steps_per_projection; j++) {
       //Eigen::MatrixXd delta = Eigen::MatrixXd::Random(k.rows(), k.cols());
@@ -890,12 +900,12 @@ std::optional<Controller> synthesize_linear_controller(
       //    dataset);
       //Eigen::MatrixXd grad = (sim_plus - sim_minus) / v * delta;
       Eigen::MatrixXd grad = -get_gradient(k, cover, measure, dataset);
-      ave_grad_size += grad.norm();
+      //ave_grad_size += grad.norm();
       k += lr * grad;
       k = k.cwiseMax(safe.value().lower).cwiseMin(safe.value().upper);
     }
-    ave_grad_size /= steps_per_projection;
-    std::cout << "Average gradient size in batch " << i << ": " << ave_grad_size << std::endl;
+    //ave_grad_size /= steps_per_projection;
+    //std::cout << "Average gradient size in batch " << i << ": " << ave_grad_size << std::endl;
   }
   LinCons inv = env.compute_invariant(cover, bound, other_covers, k);
   Py_XDECREF(dataset);

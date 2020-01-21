@@ -33,7 +33,7 @@ def satelite(learning_method, number_of_rollouts, simulation_steps,
     print ("Sampled initial state is:\n {}".format(x0))
 
     Q = np.matrix("1 0 ; 0 1")
-    R = np.matrix(".0005")
+    R = 50 * np.matrix(".0005")
 
     x_min = np.array([[-1.5],[-1.5]])
     x_max = np.array([[ 1.5],[ 1.5]])
