@@ -66,13 +66,14 @@ class Shield(object):
             safe_min = self.env.x_min
             safe_max = self.env.x_max
             for i in range(len(safe_min)):
-                A = [[0.0] * len(safe_min)]
-                A[0][i] = 1.0
-                b = [safe_min[i]]
-                unsafe_space.append((A, b))
-                A[0][i] = -1.0
-                b = [-safe_max[i]]
-                unsafe_space.append((A, b))
+                A1 = [[0.0] * len(safe_min)]
+                A1[0][i] = 1.0
+                b1 = [safe_min[i]]
+                unsafe_space.append((A1, b1))
+                A2 = [[0.0] * len(safe_max)]
+                A2[0][i] = -1.0
+                b2 = [-safe_max[i]]
+                unsafe_space.append((A2, b2))
             env = (self.env.A.tolist(), self.env.B.tolist(),
                     self.env.continuous, dt, unsafe_space)
         covers = []
@@ -117,13 +118,14 @@ class Shield(object):
             safe_min = self.env.x_min
             safe_max = self.env.x_max
             for i in range(len(safe_min)):
-                A = [[0.0] * len(safe_min)]
-                A[0][i] = 1.0
-                b = [safe_min[i]]
-                unsafe_space.append((A, b))
-                A[0][i] = -1.0
-                b = [-safe_max[i]]
-                unsafe_space.append((A, b))
+                A1 = [[0.0] * len(safe_min)]
+                A1[0][i] = 1.0
+                b1 = [safe_min[i]]
+                unsafe_space.append((A1, b1))
+                A2 = [[0.0] * len(safe_max)]
+                A2[0][i] = -1.0
+                b2 = [-safe_max[i]]
+                unsafe_space.append((A2, b2))
             env = (self.env.A.tolist(), self.env.B.tolist(),
                     self.env.continuous, dt, unsafe_space)
 
@@ -164,12 +166,12 @@ class Shield(object):
                     if (A * x <= b).all():
                         break
                     iters += 1
-                    if iters > 100:
+                    if iters > 200:
                         # This space is very low-density in the region
                         # In this case we will just return some value because
                         # the probability of the state of the system reaching
                         # this space is low
-                        return (0.0, dataset)
+                        return (0.0, 0.0, dataset)
                     #else:
                     #    print x
                     #    print A * x
@@ -191,6 +193,7 @@ class Shield(object):
                     grad += (1.0 / length) * (u_k - u_n) * x.T
             return (((1.0 / its) * grad).tolist(), -total / its, dataset)
 
+        print env
         ret = synthesis.synthesize_shield(env, covers, controllers,
                 bound, measure)
 

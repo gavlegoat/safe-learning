@@ -9,7 +9,7 @@ class Environment:
     def __init__(self, A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R,
                     continuous=False, rewardf=None, timestep = 0.01,
                     unsafe=False, unsafe_property=None, multi_boundary=False,
-                    bad_reward=-900, terminal_err=0):
+                    bad_reward=-900, terminal_err=0, terminalf=None):
 
         # State transform matrix
         self.A = A
@@ -54,6 +54,8 @@ class Environment:
 
         # bad reward
         self.bad_reward = bad_reward
+
+        self.terminalf = terminalf
 
         # sample an initial condition for system
         self.reset()
@@ -108,33 +110,36 @@ class Environment:
         xk = self.xk
         reward = self.reward(xk, self.last_u)
         terminal = False
+        if self.terminalf is not None:
+            terminal = self.terminalf(xk)
         if self.x_max is None and self.x_min is None:
             return xk, reward, terminal
 
-        if not self.unsafe:
-            # Bad Terminal
-            if not ((xk < self.x_max).all() and (xk > self.x_min).all()):
-                terminal = True
-                reward = self.bad_reward
-            # Good Terminal
-            if np.abs(reward) < self.terminal_err:
-                terminal = True
-        else:
-            # Bad Terminal
-            if self.multi_boundary:
-                if ((np.array(xk) < self.x_max) * \
-                        (np.array(xk) > self.x_min)).all(axis=1).any():
+        if self.terminalf is None:
+            if not self.unsafe:
+                # Bad Terminal
+                if not ((xk < self.x_max).all() and (xk > self.x_min).all()):
                     terminal = True
                     reward = self.bad_reward
+                # Good Terminal
+                if np.abs(reward) < self.terminal_err:
+                    terminal = True
             else:
-                if ((np.array(xk) < self.x_max) * \
-                        (np.array(xk) > self.x_min)).all():
+                # Bad Terminal
+                if self.multi_boundary:
+                    if ((np.array(xk) < self.x_max) * \
+                            (np.array(xk) > self.x_min)).all(axis=1).any():
+                        terminal = True
+                        reward = self.bad_reward
+                else:
+                    if ((np.array(xk) < self.x_max) * \
+                            (np.array(xk) > self.x_min)).all():
+                        terminal = True
+                        reward = self.bad_reward
+                # Good Terminal
+                if np.abs(reward) < self.terminal_err:
+                    print "good terminal"
                     terminal = True
-                    reward = self.bad_reward
-            # Good Terminal
-            if np.abs(reward) < self.terminal_err:
-                print "good terminal"
-                terminal = True
 
 
         return xk, reward, terminal

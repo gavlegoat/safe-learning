@@ -6,7 +6,7 @@
 
 #include "abstract.hpp"
 
-#define MAX_SPLITS 2
+#define MAX_SPLITS 1
 #define ABSTRACT_DOMAIN AbstractDomain::ZONOTOPE
 
 static PyObject* DomainError;
@@ -191,8 +191,8 @@ class LinearEnv: public Environment {
     LinCons compute_invariant(const Space& cover,
         int bound, const std::vector<LinCons>& other_covers,
         const Eigen::MatrixXd& k) const override {
-      //if (bound <= 0) {
-      if (true) {
+      if (bound <= 0) {
+      //if (true) {
         // TODO
         return cover.space;
       }
@@ -331,7 +331,10 @@ bool interval_is_safe(const Interval& itv, const Environment& env,
     const Space& cover, const std::vector<LinCons>& other_covers,
     int bound) {
   auto state = std::make_unique<AbstractVal>(ABSTRACT_DOMAIN,
-      cover.space);
+      cover.bb_lower, cover.bb_upper);
+  state = state->meet_linear_constraint(cover.space.weights,
+      cover.space.biases);
+
   //std::cout << "Verifying interval" << std::endl;
   //std::cout << itv.lower.transpose() << std::endl;
   //std::cout << itv.upper.transpose() << std::endl;
@@ -353,15 +356,21 @@ bool interval_is_safe(const Interval& itv, const Environment& env,
   }
   for (const LinCons& lc : env.unsafe_space) {
     if (!state->meet_linear_constraint(lc.weights, lc.biases)->is_bottom()) {
+      //std::cout << "Unsafe" << std::endl;
       //auto t = state->meet_linear_constraint(lc.weights, lc.biases);
       //std::cout << lc.weights << std::endl;
       //std::cout << lc.biases << std::endl;
       //t->print(stdout);
+      //for (const LinCons& lc : env.unsafe_space) {
+      //  std::cout << lc.weights << std::endl;
+      //  std::cout << lc.biases << std::endl;
+      //}
       //throw std::runtime_error("");
       return false;
       // FUTURE: Deal with covers
     }
   }
+  //std::cout << "Safe" << std::endl;
   return true;
 }
 
@@ -540,7 +549,7 @@ std::optional<Interval> compute_safe_space(
       // If we couldn't find a counterexample we just shrink the entire space.
       for (int i = 0; i < itv.lower.rows(); i++) {
         for (int j = 0; j < itv.lower.cols(); j++) {
-          double c = (itv.lower(i,j) + itv.upper(i,j)) / 2;
+          double c = k(i,j);
           itv.lower(i,j) = itv.lower(i,j) + (c - itv.lower(i,j)) / 2;
           itv.upper(i,j) = itv.upper(i,j) - (itv.upper(i,j) - c) / 2;
         }
@@ -551,8 +560,10 @@ std::optional<Interval> compute_safe_space(
       Eigen::MatrixXd bad_k = ce.value();
       for (int i = 0; i < bad_k.rows(); i++) {
         for (int j = 0; j < bad_k.cols(); j++) {
-          double c = (itv.lower(i,j) + itv.upper(i,j)) / 2;
-          if (itv.upper(i,j) - bad_k(i,j) < bad_k(i,j) - itv.lower(i,j)) {
+          //double c = (itv.lower(i,j) + itv.upper(i,j)) / 2;
+          double c = k(i,j);
+          //if (itv.upper(i,j) - bad_k(i,j) < bad_k(i,j) - itv.lower(i,j)) {
+          if (bad_k(i,j) > c) {
             itv.upper(i,j) = (c + bad_k(i,j)) / 2;
           } else {
             itv.lower(i,j) = (c + bad_k(i,j)) / 2;
@@ -839,6 +850,13 @@ double measure_shield(const std::vector<Controller>& shield,
   for (const Controller& ctrl : shield) {
     double t = 1;
     for (int i = 0; i < ctrl.space.bb_lower.size(); i++) {
+      // If any of our state dimensions have width zero then this volume
+      // measure breaks. We can just ignore these dimensions because they
+      // don't contribute to any splits anyway.
+      if (std::abs(ctrl.space.bb_upper(i) - ctrl.space.bb_lower(i))
+          <= 0.00000001) {
+        continue;
+      }
       t *= ctrl.space.bb_upper(i) - ctrl.space.bb_lower(i);
     }
     volume += t;
@@ -874,11 +892,11 @@ std::optional<Controller> synthesize_linear_controller(
   Eigen::MatrixXd k = initial;
   double lr = 0.01;
   double v = 0.1;
-  int steps_per_projection = 50;
+  int steps_per_projection = 30;
   PyObject* dataset = NULL;
-  for (int i = 0; i < 30; i++) {
+  for (int i = 0; i < 20; i++) {
     std::optional<Interval> safe = compute_safe_space(
-        env, cover, other_covers, k, steps_per_projection * lr / 2.5, bound);
+        env, cover, other_covers, k, steps_per_projection * lr / 2, bound);
     if (!safe) {
       // We can't compute a safe space, but we can just return the existing
       // controller because we know it is at least safe.
@@ -893,13 +911,13 @@ std::optional<Controller> synthesize_linear_controller(
     //double ave_grad_size = 0;
     // Gradient steps
     for (int j = 0; j < steps_per_projection; j++) {
-      //Eigen::MatrixXd delta = Eigen::MatrixXd::Random(k.rows(), k.cols());
-      //double sim_plus = measure_similarity(k + v * delta, cover, measure,
-      //    dataset);
-      //double sim_minus = measure_similarity(k - v * delta, cover, measure,
-      //    dataset);
-      //Eigen::MatrixXd grad = (sim_plus - sim_minus) / v * delta;
-      Eigen::MatrixXd grad = -get_gradient(k, cover, measure, dataset);
+      Eigen::MatrixXd delta = Eigen::MatrixXd::Random(k.rows(), k.cols());
+      double sim_plus = measure_similarity(k + v * delta, cover, measure,
+          dataset);
+      double sim_minus = measure_similarity(k - v * delta, cover, measure,
+          dataset);
+      Eigen::MatrixXd grad = (sim_plus - sim_minus) / v * delta;
+      //Eigen::MatrixXd grad = -get_gradient(k, cover, measure, dataset);
       //ave_grad_size += grad.norm();
       k += lr * grad;
       k = k.cwiseMax(safe.value().lower).cwiseMin(safe.value().upper);
@@ -944,6 +962,8 @@ std::vector<Controller> synthesize_fixed_covers(const Environment& env,
     covered.insert(covered.begin() + i, res.value().invariant);
     init.push_back(res.value());
   }
+  //std::cout << "Shield size: " << init.size() << std::endl;
+  //std::cout << "Covers size: " << covers.size() << std::endl;
   return init;
 }
 
@@ -1016,7 +1036,7 @@ std::vector<Controller> synthesize_shield(const Environment& env,
   }
 
   for (int i = 0; i < MAX_SPLITS; i++) {
-    std::cout << "Split: " << i << std::endl;
+    std::cout << "Split: " << (i + 1) << " / " << MAX_SPLITS << std::endl;
     // Pick the disjunct with the lowest score
     int to_split = 0;
     int lowest_score = scores[0];
@@ -1036,17 +1056,23 @@ std::vector<Controller> synthesize_shield(const Environment& env,
     std::vector<double> best_scores;
     //std::cout << to_split << ": " << covers[to_split].bb_lower.size() << std::endl;
     for (int d = 0; d < covers[to_split].bb_lower.size(); d++) {
+      std::cout << "Dimension: " << (d + 1) << " / " << covers[to_split].bb_lower.size() << std::endl;
       // Sample from a truncated uniform distribution. We'll center the
       // distribution at the middle of the bounding box and put two
       // standard deviations at the boundaries of the bounding box.
       double a = covers[to_split].bb_lower(d);
       double b = covers[to_split].bb_upper(d);
+      if (std::abs(a - b) <= 0.00000001) {
+        // There's no need to consider splits when a = b
+        continue;
+      }
       double mu = (a + b) / 2.0;
       double sig = (b - a) / 4.0;
       std::default_random_engine generator;
       std::normal_distribution<double> distribution(mu, sig);
       // Try 5 random samples
       for (int j = 0; j < 5; j++) {
+        std::cout << "Sample: " << (j + 1) << " / 5" << std::endl;
         // We'll just throw out samples outside our range. About 95% of samples
         // will be within the range so this shouldn't be a performance issue.
         double x = distribution(generator);
@@ -1064,7 +1090,9 @@ std::vector<Controller> synthesize_shield(const Environment& env,
         new_inits.push_back(inits[to_split]);
         auto new_controller = synthesize_fixed_covers(env, new_covers,
             new_inits, bound, measure);
+        //std::cout << "New shield size: " << new_controller.size() << std::endl;
         double score = measure_shield(new_controller, measure);
+        //std::cout << "score: " << score << " -- best score: " << best_score << std::endl;
         if (score > best_score) {
           //std::cout << "new best x: " << x << std::endl;
           best_score = score;
@@ -1078,6 +1106,7 @@ std::vector<Controller> synthesize_shield(const Environment& env,
       }
     }
     init = best_controller;
+    //std::cout << "Shield size (update " << i << "): " << init.size() << std::endl;
     inits = best_inits;
     scores = best_scores;
     covers = best_covers;
@@ -1092,6 +1121,7 @@ std::vector<Controller> synthesize_shield(const Environment& env,
     //  std::cout << c.invariant.biases.transpose() << std::endl;
     //}
   }
+  //std::cout << "Shield size (end of synthesize_shield): " << init.size() << std::endl;
   return init;
 }
 
@@ -1178,6 +1208,8 @@ static PyObject* py_synthesize_shield(PyObject* self, PyObject* args) {
 
   auto controller = synthesize_shield(*env, pylist_to_space(covers),
       inits, bound, measure);
+
+  //std::cout << "Shield size (before error): " << controller.size() << std::endl;
 
   if (controller.empty()) {
     PyErr_SetString(PyExc_RuntimeError, "Unable to synthesize shield");

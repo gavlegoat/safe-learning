@@ -302,6 +302,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
     last_reward = env.bad_reward
     count = 0
     reward_list = []
+    bound = 20
 
     if safe_training:
         shield = initial_shield
@@ -310,7 +311,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
         s_reward = 0.0
         for i in range(100):
             s = env.reset()
-            for j in range(int(args['max_episode_len'])):
+            for j in range(bound):
                 u = shield.call_shield(s)
                 s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
                 if r != env.bad_reward:
@@ -333,9 +334,14 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
             # Added exploration noise
             a = actor.predict(np.reshape(s, (1, actor.s_dim))) + actor_noise()
 
+            #tmp = 0
             shield_required = False
             if safe_training and shield.detector(s, a.reshape(actor.a_dim, 1)):
                 shield_required = True
+                #print s, a
+                #tmp += 1
+                #if tmp > 10:
+                #    raise RuntimeError("")
                 #try:
                 #    a = shield.call_shield(s)
                 #except RuntimeError:
@@ -349,6 +355,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
 
             if safe_training and shield_required:
                 r = shield_penalty
+                terminal = True
 
             # if r > temp_r:
             #   temp_r = r
@@ -425,12 +432,14 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
         if safe_training and (i + 1) % shield_iters == 0:
             old_shield = shield
             #shield.train_shield(old_shield, actor, bound=int(args['max_episode_len']))
-            shield.train_shield(old_shield, actor, bound=10)
+            shield.train_shield(old_shield, actor, bound=bound)
             print 'Learned a new shield'
+            print shield.K_list
+            print shield.inv_list
             s_reward = 0.0
             for i in range(100):
                 s = env.reset()
-                for j in range(int(args['max_episode_len'])):
+                for j in range(bound):
                     u = shield.call_shield(s)
                     s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
                     if r != env.bad_reward:
@@ -455,7 +464,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
         s = env.reset()
         total_runs += 1
         log = []
-        for j in range(int(args['max_episode_len'])):
+        for j in range(bound):
             u = actor.predict(np.reshape(s, (1, actor.s_dim))) + actor_noise()
             shield_required = False
             if safe_training and shield.detector(s, u.reshape(actor.a_dim, 1)):
@@ -529,7 +538,7 @@ def DDPG(env, args, replay_buffer=None, safe_training=False, rewardf=None,
 
     state_dim = env.state_dim
     action_dim = env.action_dim
-    assert (env.u_max == -env.u_min).all()
+    #assert (env.u_max == -env.u_min).all()
     action_bound = env.u_max[0]
 
     actor = ActorNetwork(sess, list(args['actor_structure']), state_dim,
