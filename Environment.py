@@ -9,11 +9,15 @@ class Environment:
     def __init__(self, A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R,
                     continuous=False, rewardf=None, timestep = 0.01,
                     unsafe=False, unsafe_property=None, multi_boundary=False,
-                    bad_reward=-900, terminal_err=0, terminalf=None):
+                    bad_reward=-900, terminal_err=0, terminalf=None,
+                    unsafe_A=None, unsafe_b=None):
 
         # State transform matrix
         self.A = A
         self.B = B
+
+        self.unsafe_A = unsafe_A
+        self.unsafe_b = unsafe_b
 
         # initial action space
         self.u_min = u_min

@@ -210,7 +210,7 @@ class LinearEnv: public Environment {
       // Find X such that for all x \in X, T * x \in Safe where T is the n-step
       // transition matrix and Safe is the safe region. Then if the _unsafe_ region
       // is defined by A x < b, we need to have
-      // A (T x) >= b ==> (A T) x >= b ==> (- A T) x <= - b
+      // A (T x) >= b ==> (A T) x >= b ==> (- A T) x <= - b.
 
       Eigen::MatrixXd n_step = Eigen::MatrixXd::Identity(A.rows(), A.rows());
       std::vector<Eigen::VectorXd> constraints;
@@ -218,6 +218,9 @@ class LinearEnv: public Environment {
       for (int i = 0; i < bound; i++) {
         for (const LinCons& lc : unsafe_space) {
           Eigen::MatrixXd m = -lc.weights * n_step;
+          if (m.rows() > 1) {
+            return cover.space;
+          }
           for (int i = 0; i < m.rows(); i++) {
             constraints.push_back(m.row(i));
             coeffs.push_back(-lc.biases(i));

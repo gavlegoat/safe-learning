@@ -21,7 +21,8 @@ class ReplayBuffer(object):
         self.buffer_size = buffer_size
         self.count = 0
         self.buffer = deque()
-        random.seed(random_seed)
+        # RANDOM
+        #random.seed(random_seed)
 
     def add(self, s, a, r, t, s2):
         experience = (s, a, r, t, s2)
@@ -281,7 +282,7 @@ class OrnsteinUhlenbeckActionNoise:
 @timeit
 def train(sess, env, args, actor, critic, actor_noise, restorer,
           replay_buffer=None, safe_training=False, rewardf=None, shields=1,
-          initial_shield=None, penalty_ratio=0.1):
+          initial_shield=None, penalty_ratio=0.1, bound=20):
 
     print "Started training"
 
@@ -302,7 +303,6 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
     last_reward = env.bad_reward
     count = 0
     reward_list = []
-    bound = 20
 
     if safe_training:
         shield = initial_shield
@@ -531,10 +531,11 @@ def test(env, actor, args, actor_noise):
 
 
 def DDPG(env, args, replay_buffer=None, safe_training=False, rewardf=None,
-        shields=1, initial_shield=None, penalty_ratio=0.1):
+        shields=1, initial_shield=None, penalty_ratio=0.1, bound=20):
     sess = tf.Session()
-    np.random.seed(int(args['random_seed']))
-    tf.set_random_seed(int(args['random_seed']))
+    # RANDOM
+    #np.random.seed(int(args['random_seed']))
+    #tf.set_random_seed(int(args['random_seed']))
 
     state_dim = env.state_dim
     action_dim = env.action_dim
@@ -563,7 +564,8 @@ def DDPG(env, args, replay_buffer=None, safe_training=False, rewardf=None,
 
     shield = train(sess, env, args, actor, critic, actor_noise, restorer,
             replay_buffer, safe_training, rewardf=rewardf, shields=shields,
-            initial_shield=initial_shield, penalty_ratio=penalty_ratio)
+            initial_shield=initial_shield, penalty_ratio=penalty_ratio,
+            bound=bound)
 
     if args['enable_test']:
         test(env, actor, args, actor_noise)

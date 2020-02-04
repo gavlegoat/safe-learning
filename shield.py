@@ -62,18 +62,23 @@ class Shield(object):
             env = (self.env.capsule, self.env.continuous, dt, unsafe_space)
         else:
             # unsafe_space format: [(matrix, vector}]
-            unsafe_space = []
-            safe_min = self.env.x_min
-            safe_max = self.env.x_max
-            for i in range(len(safe_min)):
-                A1 = [[0.0] * len(safe_min)]
-                A1[0][i] = 1.0
-                b1 = [safe_min[i]]
-                unsafe_space.append((A1, b1))
-                A2 = [[0.0] * len(safe_max)]
-                A2[0][i] = -1.0
-                b2 = [-safe_max[i]]
-                unsafe_space.append((A2, b2))
+            if self.env.unsafe_A is not None:
+                unsafe_space = []
+                for (A, b) in zip(self.env.unsafe_A, self.env.unsafe_b):
+                    unsafe_space.append((A.tolist(), np.asarray(b).flatten().tolist()))
+            else:
+                unsafe_space = []
+                safe_min = self.env.x_min
+                safe_max = self.env.x_max
+                for i in range(len(safe_min)):
+                    A1 = [[0.0] * len(safe_min)]
+                    A1[0][i] = 1.0
+                    b1 = [safe_min[i]]
+                    unsafe_space.append((A1, b1))
+                    A2 = [[0.0] * len(safe_max)]
+                    A2[0][i] = -1.0
+                    b2 = [-safe_max[i]]
+                    unsafe_space.append((A2, b2))
             env = (self.env.A.tolist(), self.env.B.tolist(),
                     self.env.continuous, dt, unsafe_space)
         covers = []
@@ -114,18 +119,23 @@ class Shield(object):
             env = (self.env.capsule, self.env.continuous, dt, unsafe_space)
         else:
             # unsafe_space format: [(matrix, vector}]
-            unsafe_space = []
-            safe_min = self.env.x_min
-            safe_max = self.env.x_max
-            for i in range(len(safe_min)):
-                A1 = [[0.0] * len(safe_min)]
-                A1[0][i] = 1.0
-                b1 = [safe_min[i]]
-                unsafe_space.append((A1, b1))
-                A2 = [[0.0] * len(safe_max)]
-                A2[0][i] = -1.0
-                b2 = [-safe_max[i]]
-                unsafe_space.append((A2, b2))
+            if self.env.unsafe_A is not None:
+                unsafe_space = []
+                for (A, b) in zip(self.env.unsafe_A, self.env.unsafe_b):
+                    unsafe_space.append((A.tolist(), np.asarray(b).flatten().tolist()))
+            else:
+                unsafe_space = []
+                safe_min = self.env.x_min
+                safe_max = self.env.x_max
+                for i in range(len(safe_min)):
+                    A1 = [[0.0] * len(safe_min)]
+                    A1[0][i] = 1.0
+                    b1 = [safe_min[i]]
+                    unsafe_space.append((A1, b1))
+                    A2 = [[0.0] * len(safe_max)]
+                    A2[0][i] = -1.0
+                    b2 = [-safe_max[i]]
+                    unsafe_space.append((A2, b2))
             env = (self.env.A.tolist(), self.env.B.tolist(),
                     self.env.continuous, dt, unsafe_space)
 
