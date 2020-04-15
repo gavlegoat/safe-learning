@@ -94,30 +94,30 @@ def obstacle(learning_method, number_of_rollouts, simulation_steps,
           np.matrix([[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]])]
     invs = [(np.matrix([[-1.0, 0.0,  0.0, 0.0, 0.0],
                         [ 0.0, 0.0, -1.0, 0.0, 0.0]]),
-             np.matrix([[-2.5], [0.0]])),
+             np.matrix([[-1.25], [0.0]])),
             (np.matrix([[1.0, 0.0, 0.0, 0.0, 0.0],
                         [0.0, 0.0, 1.0, 0.0, 0.0]]),
-             np.matrix([[0.5], [0.0]])),
+             np.matrix([[0.75], [0.0]])),
             (np.matrix([[0.0, -1.0, 0.0,  0.0, 0.0],
                         [0.0,  0.0, 0.0, -1.0, 0.0]]),
-             np.matrix([[-2.5], [0.0]])),
+             np.matrix([[-1.25], [0.0]])),
             (np.matrix([[0.0, 1.0, 0.0, 0.0, 0.0],
                         [0.0, 0.0, 0.0, 1.0, 0.0]]),
-             np.matrix([[0.5], [0.0]]))]
+             np.matrix([[0.75], [0.0]]))]
     covers = [(invs[0][0], invs[0][1],
-               np.matrix([[2.5, -1.0, -1.0, -1.0, 1.0]]),
+               np.matrix([[1.25, -1.0, -1.0, -1.0, 1.0]]),
                np.matrix([[x_goal, y_goal, 5.0, 5.0, 1.0]])),
               (invs[1][0], invs[1][1],
                np.matrix([[-1.0, -1.0, -1.0, -1.0, 1.0]]),
-               np.matrix([[0.5, y_goal, 5.0, 5.0, 1.0]])),
+               np.matrix([[0.75, y_goal, 5.0, 5.0, 1.0]])),
               (invs[2][0], invs[2][1],
-               np.matrix([[-1.0, 2.5, -1.0, -1.0, 1.0]]),
+               np.matrix([[-1.0, 1.25, -1.0, -1.0, 1.0]]),
                np.matrix([[x_goal, y_goal,  5.0, 5.0, 1.0]])),
               (invs[3][0], invs[3][1],
                np.matrix([[-1.0, -1.0, -1.0, -1.0, 1.0]]),
-               np.matrix([[x_goal, 0.5,  5.0, 5.0, 1.0]]))]
+               np.matrix([[x_goal, 0.75,  5.0, 5.0, 1.0]]))]
 
-    bound = 7
+    bound = 10
 
     initial_shield = Shield(env, K_list=Ks, inv_list=invs, cover_list=covers,
             bound=bound)
