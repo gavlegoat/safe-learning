@@ -117,7 +117,7 @@ def timeit(func):
         ret = func(*args, **kvargs)
         end = time.time()
         t = end-start
-        print func.__name__, 'run time:', t, 's'
+        print(func.__name__, 'run time:', t, 's')
         return ret
 
     return wrapper

@@ -613,6 +613,11 @@ std::unique_ptr<AbstractVal> AbstractVal::clone() const {
   return std::make_unique<AbstractVal>(man, ap_abstract0_copy(man, value));
 }
 
+std::unique_ptr<AbstractVal> AbstractVal::bottom() const {
+  return std::make_unique<AbstractVal>(man, ap_abstract0_bottom(man,
+        0, this->dims()));
+}
+
 LinCons AbstractVal::get_lincons() const {
   ap_lincons0_array_t res = ap_abstract0_to_lincons_array(man, value);
   int d = dims();
@@ -931,6 +936,11 @@ Eigen::VectorXd Powerset::get_contained_point() const {
 
 std::unique_ptr<AbstractVal> Powerset::clone() const {
   return std::make_unique<Powerset>(man, ap_abstract0_copy(man, value), size);
+}
+
+std::unique_ptr<AbstractVal> Powerset::bottom() const {
+  return std::make_unique<Powerset>(man, ap_abstract0_bottom(man,
+        0, this->dims()), this->size);
 }
 
 std::unique_ptr<AbstractVal> Powerset::make_new(ap_abstract0_t* a) const {

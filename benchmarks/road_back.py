@@ -33,17 +33,29 @@ def road(learning_method, number_of_rollouts, simulation_steps,
     x_min = np.array([[-100.0], [-10.0], [0.0]])
     x_max = np.array([[100.0], [max_speed], [2.0]])
 
-    def rewardf(x, u):
-        return x[0,0] - x_goal
+    ev_min = np.array([[0.0]])
+    ev_max = np.array([[0.0]])
 
-    def terminalf(x):
-        return x[0,0] >= x_goal
+    def rewardf(x, u, extra_vars):
+        if extra_vars[0,0] <= 0.5:
+            return x[0,0] - x_goal
+        else:
+            return -x[0,0]
+
+    def terminalf(x, extra_vars):
+        return x[0,0] <= 0.0 and extra_vars[0,0] >= 0.5
+
+    def ev_func(x, u, extra_vars):
+        if x[0,0] >= x_goal:
+            extra_vars[0,0] = 1.0
+        return extra_vars
 
     u_min = np.array([[-2.0]])
     u_max = np.array([[ 5.0]])
 
     env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max,
-            None, None, continuous=True, rewardf=rewardf, terminalf=terminalf)
+            None, None, continuous=True, rewardf=rewardf, terminalf=terminalf,
+            ev_min=ev_min, ev_max=ev_max, ev_func=ev_func)
 
     if retrain_nn:
         args = { 'actor_lr': 0.0001,

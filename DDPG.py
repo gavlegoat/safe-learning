@@ -21,7 +21,8 @@ class ReplayBuffer(object):
         self.buffer_size = buffer_size
         self.count = 0
         self.buffer = deque()
-        random.seed(random_seed)
+        # RANDOM
+        #random.seed(random_seed)
 
     def add(self, s, a, r, t, s2):
         experience = (s, a, r, t, s2)
@@ -281,9 +282,9 @@ class OrnsteinUhlenbeckActionNoise:
 @timeit
 def train(sess, env, args, actor, critic, actor_noise, restorer,
           replay_buffer=None, safe_training=False, rewardf=None, shields=1,
-          initial_shield=None, penalty_ratio=0.1):
+          initial_shield=None, penalty_ratio=0.1, bound=20):
 
-    print "Started training"
+    print("Started training")
 
     # Initialize target network weights
     actor.update_target_network()
@@ -302,25 +303,25 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
     last_reward = env.bad_reward
     count = 0
     reward_list = []
-    bound = 20
+    unsafe_runs = 0
 
     if safe_training:
         shield = initial_shield
         shield_penalty = env.bad_reward * penalty_ratio
-        shield_iters = (int(args['max_episodes']) + 1) / shields
+        shield_iters = (int(args['max_episodes']) + 1) // shields
         s_reward = 0.0
         for i in range(100):
             s = env.reset()
-            for j in range(bound):
+            for j in range(10 * bound):
                 u = shield.call_shield(s)
-                s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
+                s2, r, terminal = env.step(u.reshape(actor.a_dim, 1), safe=True)
                 if r != env.bad_reward:
                     s_reward += r
                 s = s2
                 if terminal:
                     s = env.reset()
         s_reward /= 100.0
-        print "Average initial shield reward:", s_reward
+        print("Average initial shield reward:", s_reward)
 
     for i in range(int(args['max_episodes'])):
         s = env.reset()
@@ -342,20 +343,23 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
                 #tmp += 1
                 #if tmp > 10:
                 #    raise RuntimeError("")
-                #try:
-                #    a = shield.call_shield(s)
-                #except RuntimeError:
-                #    s = env.reset()
-                #    continue
+                try:
+                    a = shield.call_shield(s)
+                except RuntimeError:
+                    s = env.reset()
+                #    #continue
                 #    #print "s, a, r, s2, shield_required, terminal"
                 #    #print log
                 #    #raise RuntimeError("")
 
-            s2, r, terminal = env.step(a.reshape(actor.a_dim, 1))
+            s2, r, terminal = env.step(a.reshape(actor.a_dim, 1), safe=safe_training)
 
             if safe_training and shield_required:
                 r = shield_penalty
                 terminal = True
+
+            if r == env.bad_reward and not safe_training:
+                unsafe_runs += 1
 
             # if r > temp_r:
             #   temp_r = r
@@ -363,7 +367,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
                     np.reshape(np.array(a), (actor.a_dim,)), r,
                     terminal, np.reshape(np.array(s2), (actor.s_dim, )))
 
-            log.append((s, a, r, s2, shield_required, terminal))
+            #log.append((s, a, r, s2, shield_required, terminal))
 
             # Keep adding experience to the memory until
             # there are at least minibatch size samples
@@ -418,7 +422,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
                 # print reward_mean
                 # print env.bad_reward
                 restorer.save(sess, args['model_path'])
-                print 'sess has been stored to', args['model_path']
+                print('sess has been stored to', args['model_path'])
                 last_reward = reward_mean
 
             count = 0
@@ -430,33 +434,42 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
         # print "u\n", env.last_u
 
         if safe_training and (i + 1) % shield_iters == 0:
-            old_shield = shield
-            #shield.train_shield(old_shield, actor, bound=int(args['max_episode_len']))
-            shield.train_shield(old_shield, actor, bound=bound)
-            print 'Learned a new shield'
-            print shield.K_list
-            print shield.inv_list
             s_reward = 0.0
             for i in range(100):
                 s = env.reset()
-                for j in range(bound):
-                    u = shield.call_shield(s)
-                    s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
+                for j in range(10 * bound):
+                    u = actor.predict(np.reshape(s, (1, actor.s_dim))) + actor_noise()
+                    shield_required = False
+                    if safe_training and shield.detector(s, u.reshape(actor.a_dim, 1)):
+                        shield_required = True
+                        try:
+                            u = shield.call_shield(s)
+                        except RuntimeError:
+                            print("s, a, r, s2, shield_required, terminal")
+                            print(log)
+                            raise RuntimeError("")
+                    s2, r, terminal = env.step(u.reshape(actor.a_dim, 1), safe=True)
                     if r != env.bad_reward:
                         s_reward += r
                     s = s2
                     if terminal:
                         s = env.reset()
             s_reward /= 100.0
-            print "New shield reward:", s_reward
+            print("New combined reward (before shield update):", s_reward)
+            old_shield = shield
+            #shield.train_shield(old_shield, actor, bound=int(args['max_episode_len']))
+            shield.train_shield(old_shield, actor, bound=bound)
+            print('Learned a new shield')
 
-    print 'min reward:', last_reward
+    print('min reward:', last_reward)
     if last_reward == env.bad_reward:
         restorer.save(sess, args['model_path'])
     model_path = os.path.split(args['model_path'])[0]+'/'
     final_model = model_path+'final_model.chkp'
     restorer.save(sess, final_model)
-    print 'sess has been saved to', final_model
+    print('sess has been saved to', final_model)
+    if not safe_training:
+        print("Unsafe runs:", unsafe_runs)
     s_reward = 0.0
     unsafe_count = 0
     total_runs = 0
@@ -464,7 +477,7 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
         s = env.reset()
         total_runs += 1
         log = []
-        for j in range(bound):
+        for j in range(10 * bound):
             u = actor.predict(np.reshape(s, (1, actor.s_dim))) + actor_noise()
             shield_required = False
             if safe_training and shield.detector(s, u.reshape(actor.a_dim, 1)):
@@ -472,10 +485,10 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
                 try:
                     u = shield.call_shield(s)
                 except RuntimeError:
-                    print "s, a, r, s2, shield_required, terminal"
-                    print log
+                    print("s, a, r, s2, shield_required, terminal")
+                    print(log)
                     raise RuntimeError("")
-            s2, r, terminal = env.step(u.reshape(actor.a_dim, 1))
+            s2, r, terminal = env.step(u.reshape(actor.a_dim, 1), safe=True)
             if r == env.bad_reward:
             #    print s, u, s2, shield_required
             #    raise RuntimeError("Unsafe state reached")
@@ -488,8 +501,8 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
                 s = env.reset()
                 total_runs += 1
     s_reward /= 100.0
-    print "Average final combined reward:", s_reward
-    print "Runs ending in an unsafe state:", unsafe_count, "out of", total_runs
+    print("Average final combined reward:", s_reward)
+    print("Runs ending in an unsafe state:", unsafe_count, "out of", total_runs)
 
     return shield
 
@@ -502,7 +515,7 @@ def test(env, actor, args, actor_noise):
     for ep in xrange(args['test_episodes']):
         s = env.reset()
         init_s = s
-        print "----ep: {} ----".format(ep)
+        print("----ep: {} ----".format(ep))
         for i in xrange(args['test_episodes_len']):
             a = actor.predict(np.reshape(np.array(s), (1, actor.s_dim))) #+ actor_noise()
             s, r, terminal = env.step(a.reshape(actor.a_dim, 1))
@@ -518,23 +531,24 @@ def test(env, actor, args, actor_noise):
             elif i == args['test_episodes_len']-1:
                 success_time += 1
 
-        print 'initial state:\n', init_s, \
+        print('initial state:\n', init_s, \
                 '\nstate at terminal step:\n'.format(i), s, \
-                '\nlast action:\n', env.last_u
-        print "----terminal step: {} ----".format(i)
+                '\nlast action:\n', env.last_u)
+        print("----terminal step: {} ----".format(i))
 
-    print 'Success: {}, Fail: {}'.format(success_time, fail_time)
+    print('Success: {}, Fail: {}'.format(success_time, fail_time))
 
-    print '#############Fail List:###############'
+    print('#############Fail List:###############')
     for (i, e) in fail_list:
-        print 'initial state: \n{}\nend state: \n{}\n----'.format(i, e)
+        print('initial state: \n{}\nend state: \n{}\n----'.format(i, e))
 
 
 def DDPG(env, args, replay_buffer=None, safe_training=False, rewardf=None,
-        shields=1, initial_shield=None, penalty_ratio=0.1):
+        shields=1, initial_shield=None, penalty_ratio=0.1, bound=20):
     sess = tf.Session()
-    np.random.seed(int(args['random_seed']))
-    tf.set_random_seed(int(args['random_seed']))
+    # RANDOM
+    #np.random.seed(int(args['random_seed']))
+    #tf.set_random_seed(int(args['random_seed']))
 
     state_dim = env.state_dim
     action_dim = env.action_dim
@@ -563,7 +577,8 @@ def DDPG(env, args, replay_buffer=None, safe_training=False, rewardf=None,
 
     shield = train(sess, env, args, actor, critic, actor_noise, restorer,
             replay_buffer, safe_training, rewardf=rewardf, shields=shields,
-            initial_shield=initial_shield, penalty_ratio=penalty_ratio)
+            initial_shield=initial_shield, penalty_ratio=penalty_ratio,
+            bound=bound)
 
     if args['enable_test']:
         test(env, actor, args, actor_noise)
@@ -587,8 +602,8 @@ def actor_boundary(env, actor, epsoides=1000, steps=100):
             if terminal:
                 break
 
-    print 'max_boundary:\n{}\nmin_boundary:\n{}'.format(
-            max_boundary, min_boundary)
+    print('max_boundary:\n{}\nmin_boundary:\n{}'.format(
+            max_boundary, min_boundary))
 
 @timeit
 def random_search_for_init_buffer(env, args, target, trance_number, rewardf,
@@ -631,7 +646,7 @@ def random_search_for_init_buffer(env, args, target, trance_number, rewardf,
 
             # Good Terminal
             if np.sum(np.abs(xk-target)) < terminal_err:
-                print "process: {}/{}".format(i+1,trance_number)
+                print("process: {}/{}".format(i+1,trance_number))
                 xk_list.append(xk)
                 action_list.append(a)
                 break
@@ -642,7 +657,7 @@ def random_search_for_init_buffer(env, args, target, trance_number, rewardf,
             r_list.append(r)
             count = 0
 
-        print "end state:\n", xk_list[-1], "\n-----"
+        print("end state:\n", xk_list[-1], "\n-----")
 
         for _ in xrange(repeat_time):
             xk_list_batch.append(xk_list)

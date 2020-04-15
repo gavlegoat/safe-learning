@@ -59,21 +59,34 @@ class Shield(object):
             unsafe_space = []
             for (A, b) in zip(self.env.unsafe_A, self.env.unsafe_b):
                 unsafe_space.append((A.tolist(), np.asarray(b).flatten().tolist()))
-            env = (self.env.capsule, self.env.continuous, dt, unsafe_space)
+            if self.env.approx:
+                env = (self.env.breaks, self.env.break_breaks,
+                        list(map(lambda x: x.tolist(), self.env.lower_As)),
+                        list(map(lambda x: x.tolist(), self.env.lower_Bs)),
+                        list(map(lambda x: x.tolist(), self.env.upper_As)),
+                        list(map(lambda x: x.tolist(), self.env.upper_Bs)),
+                        self.env.continuous, dt, unsafe_space)
+            else:
+                env = (self.env.capsule, self.env.continuous, dt, unsafe_space)
         else:
             # unsafe_space format: [(matrix, vector}]
-            unsafe_space = []
-            safe_min = self.env.x_min
-            safe_max = self.env.x_max
-            for i in range(len(safe_min)):
-                A1 = [[0.0] * len(safe_min)]
-                A1[0][i] = 1.0
-                b1 = [safe_min[i]]
-                unsafe_space.append((A1, b1))
-                A2 = [[0.0] * len(safe_max)]
-                A2[0][i] = -1.0
-                b2 = [-safe_max[i]]
-                unsafe_space.append((A2, b2))
+            if self.env.unsafe_A is not None:
+                unsafe_space = []
+                for (A, b) in zip(self.env.unsafe_A, self.env.unsafe_b):
+                    unsafe_space.append((A.tolist(), np.asarray(b).flatten().tolist()))
+            else:
+                unsafe_space = []
+                safe_min = self.env.x_min
+                safe_max = self.env.x_max
+                for i in range(len(safe_min)):
+                    A1 = [[0.0] * len(safe_min)]
+                    A1[0][i] = 1.0
+                    b1 = [safe_min[i]]
+                    unsafe_space.append((A1, b1))
+                    A2 = [[0.0] * len(safe_max)]
+                    A2[0][i] = -1.0
+                    b2 = [-safe_max[i]]
+                    unsafe_space.append((A2, b2))
             env = (self.env.A.tolist(), self.env.B.tolist(),
                     self.env.continuous, dt, unsafe_space)
         covers = []
@@ -91,7 +104,7 @@ class Shield(object):
 
         for (A, b) in ret:
             self.use_list.append((np.matrix(A),
-                np.matrix(map(lambda x: [x], b))))
+                np.matrix([[x] for x in b])))
 
     @timeit
     def train_shield(self, old_shield, actor, bound=20):
@@ -111,21 +124,34 @@ class Shield(object):
             unsafe_space = []
             for (A, b) in zip(self.env.unsafe_A, self.env.unsafe_b):
                 unsafe_space.append((A.tolist(), np.asarray(b).flatten().tolist()))
-            env = (self.env.capsule, self.env.continuous, dt, unsafe_space)
+            if self.env.approx:
+                env = (self.env.breaks, self.env.break_breaks,
+                        list(map(lambda x: x.tolist(), self.env.lower_As)),
+                        list(map(lambda x: x.tolist(), self.env.lower_Bs)),
+                        list(map(lambda x: x.tolist(), self.env.upper_As)),
+                        list(map(lambda x: x.tolist(), self.env.upper_Bs)),
+                        self.env.continuous, dt, unsafe_space)
+            else:
+                env = (self.env.capsule, self.env.continuous, dt, unsafe_space)
         else:
             # unsafe_space format: [(matrix, vector}]
-            unsafe_space = []
-            safe_min = self.env.x_min
-            safe_max = self.env.x_max
-            for i in range(len(safe_min)):
-                A1 = [[0.0] * len(safe_min)]
-                A1[0][i] = 1.0
-                b1 = [safe_min[i]]
-                unsafe_space.append((A1, b1))
-                A2 = [[0.0] * len(safe_max)]
-                A2[0][i] = -1.0
-                b2 = [-safe_max[i]]
-                unsafe_space.append((A2, b2))
+            if self.env.unsafe_A is not None:
+                unsafe_space = []
+                for (A, b) in zip(self.env.unsafe_A, self.env.unsafe_b):
+                    unsafe_space.append((A.tolist(), np.asarray(b).flatten().tolist()))
+            else:
+                unsafe_space = []
+                safe_min = self.env.x_min
+                safe_max = self.env.x_max
+                for i in range(len(safe_min)):
+                    A1 = [[0.0] * len(safe_min)]
+                    A1[0][i] = 1.0
+                    b1 = [safe_min[i]]
+                    unsafe_space.append((A1, b1))
+                    A2 = [[0.0] * len(safe_max)]
+                    A2[0][i] = -1.0
+                    b2 = [-safe_max[i]]
+                    unsafe_space.append((A2, b2))
             env = (self.env.A.tolist(), self.env.B.tolist(),
                     self.env.continuous, dt, unsafe_space)
 
@@ -150,9 +176,9 @@ class Shield(object):
             # object should be created if it is None and updated with
             # new trajectories otherwise.
             A = np.matrix(space[0])
-            b = np.matrix(map(lambda x: [x], space[1]))
-            lower = np.matrix(map(lambda x: [x], space[2]))
-            upper = np.matrix(map(lambda x: [x], space[3]))
+            b = np.matrix([[x] for x in space[1]])
+            lower = np.matrix([[x] for x in space[2]])
+            upper = np.matrix([[x] for x in space[3]])
             contr = np.matrix(K)
             grad = np.zeros_like(K)
             total = 0.0
@@ -193,7 +219,6 @@ class Shield(object):
                     grad += (1.0 / length) * (u_k - u_n) * x.T
             return (((1.0 / its) * grad).tolist(), -total / its, dataset)
 
-        print env
         ret = synthesis.synthesize_shield(env, covers, controllers,
                 bound, measure)
 
@@ -203,12 +228,18 @@ class Shield(object):
         for (k, (A, b), (sA, sb, l, u)) in ret:
             self.K_list.append(np.matrix(k))
             self.inv_list.append((np.matrix(A),
-                np.matrix(map(lambda x: [x], b))))
+                np.matrix([[x] for x in b])))
             self.cover_list.append((np.matrix(sA),
-                np.matrix(map(lambda x: [x], sb)),
-                np.matrix(map(lambda x: [x], l)),
-                np.matrix(map(lambda x: [x], u))))
+                np.matrix([[x] for x in sb]),
+                np.matrix([[x] for x in l]),
+                np.matrix([[x] for x in u])))
         self.set_covers(bound)
+        print("Controllers:")
+        print(self.K_list)
+        print("Invariants:")
+        print(self.inv_list)
+        print("Covers:")
+        print(self.cover_list)
 
     def save_shield(self, model_path):
         """Save a shield to a file.
@@ -252,6 +283,11 @@ class Shield(object):
                 self.last_shield = -1
                 # print A, b, n, A * n
                 return False
+        #print("Shield called in state:")
+        #print(x)
+        #print("Next state:")
+        #print(n)
+
         return True
 
     def call_shield(self, x):
@@ -271,12 +307,12 @@ class Shield(object):
             if (A * x <= b).all():
                 self.last_shield = i
                 return self.K_list[i] * x
-        print x
+        print(x)
         for (A, b) in self.inv_list:
-            print A
-            print b
-            print A * x
-            print A * x <= b
+            print(A)
+            print(b)
+            print(A * x)
+            print(A * x <= b)
         raise RuntimeError("No appropriate controller found in shield invocation")
 
     @timeit
@@ -471,7 +507,7 @@ class Shield(object):
                 #verified = verifysos(writesos("sos.jl", sos), false, 900,
                 verified = verifysos(writesos("sos.jl", sos), false, 300,
                         aggressive=aggressive)
-                print verified
+                print(verified)
 
                 #if verified.split("#")[0].find("optimal") >= 0:
                 if verified.split("#")[0].find("optimal") >= 0:
@@ -481,7 +517,7 @@ class Shield(object):
 
             theta = (self.env.s_min, self.env.s_max)
             result, resultlist = verify_controller_z3(x0, theta, verification_oracle_continuous, learning_oracle_continuous, draw_oracle_continuous, continuous=true)
-            print ("shield synthesis result: {}".format(result))
+            print("shield synthesis result: {}".format(result))
             if result:
                 for (x, initial_size, inv, k) in resultlist:
                     self.b_str_list.append(inv+"\n")
@@ -532,7 +568,7 @@ class Shield(object):
 
                     u = self.call_shield(x)
                     if not mute:
-                        print "!shield at step {}".format(i)
+                        print("!shield at step {}".format(i))
 
                     combo_remain -= 1
 
@@ -551,16 +587,16 @@ class Shield(object):
                 if i == test_step-1:
                     success_time += 1
 
-            print "----epoch: {} ----".format(ep)
-            print 'initial state:\n', init_x, '\nterminal state:\n', x, '\nlast action:\n', self.env.last_u
-            print "----step: {} ----".format(i)
+            print("----epoch: {} ----".format(ep))
+            print('initial state:\n', init_x, '\nterminal state:\n', x, '\nlast action:\n', self.env.last_u)
+            print("----step: {} ----".format(i))
 
-        print 'Success: {}, Fail: {}'.format(success_time, fail_time)
-        print '#############Fail List:###############'
+        print('Success: {}, Fail: {}'.format(success_time, fail_time))
+        print('#############Fail List:###############')
         for (i, e) in fail_list:
-          print 'initial state:\n{}\nend state: \n{}\n----'.format(i, e)
+          print('initial state:\n{}\nend state: \n{}\n----'.format(i, e))
 
-        print 'shield times: {}, shield ratio: {}'.format(self.shield_count, float(self.shield_count)/(test_ep*test_step))
+        print('shield times: {}, shield ratio: {}'.format(self.shield_count, float(self.shield_count)/(test_ep*test_step)))
 
 
     @timeit
@@ -583,8 +619,8 @@ class Shield(object):
                 # step
                 x, _, terminal = self.env.step(u)
 
-        print 'max_boundary:\n{}\nmin_boundary:\n{}'.format(
-                max_boundary, min_boundary)
+        print('max_boundary:\n{}\nmin_boundary:\n{}'.format(
+                max_boundary, min_boundary))
 
     def learn_shield_gd(self, lr=0.00001, epsoides=100, steps=1000):
         K = np.random.random(self.env.state_dim)
@@ -599,6 +635,6 @@ class Shield(object):
                 loss += np.sum(np.power((K.dot(self.env.xk)-u), 2))
                 self.env.step(u)
             K -= lr*grad
-            print loss
+            print(loss)
 
         return K

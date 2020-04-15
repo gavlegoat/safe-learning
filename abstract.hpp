@@ -180,6 +180,8 @@ class AbstractVal {
 
     virtual std::unique_ptr<AbstractVal> clone() const;
 
+    virtual std::unique_ptr<AbstractVal> bottom() const;
+
     LinCons get_lincons() const;
 
     //virtual double distance_to_point(const Eigen::VectorXd& x) const;
@@ -215,6 +217,7 @@ class Powerset: public AbstractVal {
         const std::vector<ArithExpr>& exprs) const override;
     Eigen::VectorXd get_contained_point() const;
     std::unique_ptr<AbstractVal> clone() const override;
+    std::unique_ptr<AbstractVal> bottom() const override;
     //double distance_to_point(const Eigen::VectorXd& x) const;
 };
 

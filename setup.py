@@ -7,6 +7,7 @@ os.environ["CXX"] = "g++"
 module1 = Extension('synthesis',
                     include_dirs = ['/home/ganderso/eigen'],
                     library_dirs = ['/usr/lib64'],
+                    #libraries = ['gmp', 'mpfr', 'apron_debug', 't1pD_debug', 'boxD_debug', 'polkaMPQ'],
                     libraries = ['gmp', 'mpfr', 'apron', 't1pD', 'boxD', 'polkaMPQ'],
                     sources = ['abstract.cpp', 'synthesis.cpp'],
                     extra_compile_args = ['-std=c++17', '-g', '-O0'],

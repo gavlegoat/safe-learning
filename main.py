@@ -250,7 +250,7 @@ def random_search_helper(f, d, p, Q, R, x0, eq_err, N, T, x_min=None,
                             unsafe = True
                             break
                     if unsafe:
-                        print "unsafe x : {} at time {}".format(x, t)
+                        print("unsafe x : {} at time {}".format(x, t))
                         break
                 mini_batch += reward[0,0] * sign * V
                 reward_store.append(reward)
@@ -418,7 +418,7 @@ def policy_gradient_helper(f, d, p, Q, R, x0, eq_err, N, T, x_min=None,
                         unsafe = True
                         break
                 if unsafe:
-                    print ("unsafe x : {} at time {}".format(x, t))
+                    print("unsafe x : {} at time {}".format(x, t))
                     break
             mb_store[:,:,j] = np.dot(V_store, X_store.T)
 
@@ -456,26 +456,26 @@ def learn_controller(A, B, Q, R, x0, eq_err, learning_method,
     if learning_method == "lqr":
         K = dlqr(A, B, Q, R)
         #K = lqr_gain(A,B,Q,R)
-        print "K = {}".format(K)
+        print("K = {}".format(K))
         #print "double c[] = {%f, %f, %f, %f};" % (K[0,0], K[0,1], K[0,2], K[0,3])
     elif learning_method == "random_search":
         K = random_search_linear_policy(A, B, Q, R, x0, eq_err,
                 number_of_rollouts, simulation_steps, x_min, x_max, continuous,
                 timestep, rewardf, explore_mag, step_size, coffset=coffset,
                 bias=bias, unsafe_flag=unsafe_flag, lqr_start=lqr_start)
-        print "K = {}".format(K)
+        print("K = {}".format(K))
     elif learning_method == "random_search_2":
         K = uniform_random_linear_policy(A, B, Q, R, x0, eq_err,
                 number_of_rollouts, simulation_steps, x_min, x_max, continuous,
                 timestep)
-        print "K = {}".format(K)
+        print("K = {}".format(K))
     elif learning_method == "policy_gradient":
         K = policy_gradient_adam_linear_policy(A, B, Q, R, x0, eq_err,
                 number_of_rollouts, simulation_steps, x_min, x_max, continuous,
                 timestep, rewardf, explore_mag, step_size, coffset=coffset)
-        print "K = {}".format(K)
+        print("K = {}".format(K))
     else:
-        print "Learning method {} is not found".format(learning_method)
+        print("Learning method {} is not found".format(learning_method))
     return K
 
 def saveK(filename, K):
@@ -522,7 +522,7 @@ def draw_controller_helper(f, K, x0, simulation_steps, names, continuous=False,
             xk = f(xk, uk) if coffset is None else f(xk, uk) + coffset
 
     if rewardf is not None:
-        print "Score of the trace: {}".format(reward) 
+        print("Score of the trace: {}".format(reward))
 
     for i, k in enumerate(sorted(names.keys())):
         plt.plot(time, XS[i], label=names[k])
@@ -653,7 +653,7 @@ def get_julia_path():
 
 def verifySOS(sosfile, quite, timeout, aggressive=False):
     def logged_sys_call(args, quiet, timeout):
-        print "exec: " + " ".join(args)
+        print("exec: " + " ".join(args))
         if quiet:
             out = open("result.log", "a")
         else:
@@ -775,20 +775,20 @@ def learn_shield(A, B, Q, R, x0, eq_err, learning_method, number_of_rollouts,
                 timestep, shield_reward, explore_mag, step_size,
                 coffset=coffset, bias=bias, unsafe_flag=unsafe_flag,
                 lqr_start=lqr_start)
-        print "K = {}".format(K)
+        print("K = {}".format(K))
     elif learning_method == "random_search_2":
         K = uniform_random_linear_policy(A, B, Q, R, x0, eq_err,
                 number_of_rollouts, simulation_steps, x_min, x_max, continuous,
                 timestep, shield_reward)
-        print "K = {}".format(K)
+        print("K = {}".format(K))
     elif learning_method == "policy_gradient":
         K = policy_gradient_adam_linear_policy(A, B, Q, R, x0, eq_err,
                 number_of_rollouts, simulation_steps, x_min, x_max, continuous,
                 timestep, shield_reward, explore_mag, step_size,
                 coffset=coffset)
-        print "K = {}".format(K)
+        print("K = {}".format(K))
     else:
-        print "Learning method {} is not found".format(learning_method)
+        print("Learning method {} is not found".format(learning_method))
     return np.matrix(K)
 
 @timeit
@@ -824,7 +824,7 @@ def learn_polysys_shield(f, ds, us, Q, R, x0, eq_err, learning_method,
             step_size=step_size, coffset=coffset, bias=bias,
             unsafe_flag=unsafe_flag)  
 
-    print "K = {}".format(K)
+    print("K = {}".format(K))
     return K
 
 shield_testing_on_x_ep_len = 10
