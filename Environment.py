@@ -10,7 +10,8 @@ class Environment:
                     continuous=False, rewardf=None, timestep = 0.01,
                     unsafe=False, unsafe_property=None, multi_boundary=False,
                     bad_reward=-900, terminal_err=0, terminalf=None,
-                    unsafe_A=None, unsafe_b=None):
+                    unsafe_A=None, unsafe_b=None, ev_min=None, ev_max=None,
+                    ev_func=None):
 
         # State transform matrix
         self.A = A
@@ -61,6 +62,10 @@ class Environment:
 
         self.terminalf = terminalf
 
+        self.ev_min = ev_min
+        self.ev_max = ev_max
+        self.ev_func = ev_func
+
         # sample an initial condition for system
         self.reset()
 
@@ -75,17 +80,24 @@ class Environment:
             self.x0 = x0
         self.xk = self.x0
         self.last_u = np.zeros((1, self.action_dim))
+        if self.ev_min is not None:
+            self.extra_vars = np.matrix([[
+                np.random.uniform(self.ev_min[i,0], self.ev_max[i,0])]
+                  for i in range(len(self.ev_min))])
         return self.xk
 
     def reward(self, x, u):
         # reward
         if self.rewardf:
-            return self.rewardf(x, u)
+            if self.ev_min is not None:
+                return self.rewardf(x, u, self.extra_vars)
+            else:
+                return self.rewardf(x, u)
         else:
             return -(np.sum(self.Q * np.abs(x).reshape([self.state_dim, 1])) \
                     + np.sum(self.R * np.abs(u).reshape([self.action_dim, 1])))
 
-    def step(self, uk, coffset=None):
+    def step(self, uk, coffset=None, safe=True):
         #uk = np.array([[0]])
         def f(x, u):
             return self.A.dot(x.reshape([self.state_dim, 1])) + \
@@ -105,19 +117,31 @@ class Environment:
         else:
             self.xk = f(self.xk, uk)
 
+        if self.ev_func is not None:
+            self.extra_vars = self.ev_func(self.xk, uk, self.extra_vars)
+
         # print self.xk
         # print uk
 
-        return self.observation()
+        return self.observation(safe=safe)
 
-    def observation(self):
+    def observation(self, safe=True):
         xk = self.xk
         reward = self.reward(xk, self.last_u)
         terminal = False
         if self.terminalf is not None:
-            terminal = self.terminalf(xk)
+            if self.ev_min is not None:
+                terminal = self.terminalf(xk, self.extra_vars)
+            else:
+                terminal = self.terminalf(xk)
+        if not safe and self.unsafe_A is not None and self.unsafe_b is not None:
+            for (A, b) in zip(self.unsafe_A, self.unsafe_b):
+                if (A * xk <= b).all():
+                    return xk, self.bad_reward, True
         if self.x_max is None and self.x_min is None:
             return xk, reward, terminal
+        if not safe and not ((xk < self.x_max).any() and (xk > self.x_min).any()):
+            return xk, self.bad_reward, True
 
         if self.terminalf is None:
             if not self.unsafe:
@@ -142,7 +166,7 @@ class Environment:
                         reward = self.bad_reward
                 # Good Terminal
                 if np.abs(reward) < self.terminal_err:
-                    print "good terminal"
+                    print("good terminal")
                     terminal = True
 
 
@@ -178,7 +202,10 @@ class PolySysEnvironment:
                   bound_x_min=None, bound_x_max=None, disturbance_x_min=None,
                   disturbance_x_max=None, continuous=True, timestep = 0.01,
                   unsafe=False, multi_boundary=False, bad_reward=-900,
-                  terminal_err=0, capsule=None, unsafe_A=None, unsafe_b=None):
+                  terminal_err=0, capsule=None, unsafe_A=None, unsafe_b=None,
+                  approx=False, breaks=None, break_breaks=None, lower_As=None,
+                  lower_Bs=None, upper_As=None, upper_Bs=None,
+                  terminalf=None):
 
         # system dynamics:
         self.polyf = polyf
@@ -209,6 +236,8 @@ class PolySysEnvironment:
 
         self.unsafe = unsafe
 
+        self.terminalf = terminalf
+
         # coefficient of reward function
         self.Q = Q
         self.R = R
@@ -222,6 +251,17 @@ class PolySysEnvironment:
         self.capsule = capsule
         self.unsafe_A = unsafe_A
         self.unsafe_b = unsafe_b
+
+        self.approx = approx
+        self.breaks = breaks
+        self.break_breaks = break_breaks
+        self.lower_As = lower_As
+        self.lower_Bs = lower_Bs
+        self.upper_As = upper_As
+        self.upper_Bs = upper_Bs
+
+        self.ev_min = None
+        self.ev_max = None
 
         # sample an initial condition for system
         self.reset()
@@ -240,13 +280,16 @@ class PolySysEnvironment:
         return np.matrix(self.xk)
 
     def reward(self, x, u):
-        if self.rewardf:
-            return self.rewardf(x, self.Q, u, self.R)
+        if self.rewardf is not None:
+            if self.ev_min is not None:
+                return self.rewardf(x, self.Q, u, self.R, self.extra_vars)
+            else:
+                return self.rewardf(x, self.Q, u, self.R)
         else:
             return -(np.sum(self.Q * np.abs(x).reshape([self.state_dim, 1])) \
                     + np.sum(self.R * np.abs(u).reshape([self.action_dim, 1])))
 
-    def step(self, uk, coffset=None):
+    def step(self, uk, coffset=None, safe=True):
         f = self.polyf
 
         self.last_u = uk
@@ -261,9 +304,9 @@ class PolySysEnvironment:
         # print self.xk
         # print uk
 
-        return self.observation()
+        return self.observation(safe=safe)
 
-    def observation(self):
+    def observation(self, safe=True):
         xk = self.xk
         reward = self.reward(xk, self.last_u)
         terminal = False
@@ -272,6 +315,12 @@ class PolySysEnvironment:
             reward = self.bad_reward
         if np.abs(reward) < self.terminal_err:
             terminal = True
+        if self.terminalf is not None and self.terminalf(xk):
+            terminal = True
+        if not safe and self.unsafe_A is not None and self.unsafe_b is not None:
+            for (A, b) in zip(self.unsafe_A, self.unsafe_b):
+                if (A * xk <= b).all():
+                    return xk, self.bad_reward, True
 
         return xk, reward, terminal
 

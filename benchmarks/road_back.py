@@ -1,46 +1,61 @@
+
 import sys
 sys.path.append(".")
 
-from main import *
-from Environment import Environment
+import numpy as np
 from DDPG import *
+from main import *
+import os.path
+from Environment import Environment
 from shield import Shield
 import argparse
 
-def tape(learning_method, number_of_rollouts, simulation_steps,
-        learning_episodes, critic_structure, actor_structure, train_dir,
+# Use max_episodes 1000, episode_len 100, bound 40 or bound 20
+
+def road(learning_method, number_of_rollouts, simulation_steps,
+        learning_episodes, actor_structure, critic_structure, train_dir,
         nn_test=False, retrain_shield=False, shield_test=False,
         test_episodes=100, retrain_nn=False, safe_training=False, shields=1,
-        episode_len=100, penalty_ratio=1.0):
+        episode_len=100, penalty_ratio=0.1):
 
-    A = np.matrix([
-      [5.5197e-17,-3.5503e-17,6.2468e-32],
-      [2.7756e-17,0,0],
-      [0,2.7756e-17,0]
-      ])
+    # States: Position, velocity, constant
+    # Actions: Acceleration
 
-    B = np.matrix([[0.25],
-      [0],
-      [0]
-      ])
+    A = np.matrix([[0, 10, 0], [0, 0, 0], [0, 0, 0]])
+    B = np.matrix([[0], [10], [0]])
 
-    #intial state space
-    s_min = np.array([[-1.0],[-1.0], [-1.0]])
-    s_max = np.array([[ 1.0],[ 1.0], [ 1.0]])
+    s_min = np.array([[0], [0], [1]])
+    s_max = np.array([[0], [0], [1]])
 
-    Q = np.matrix("1 0 0 ; 0 1 0; 0 0 1")
-    R = np.matrix(".0005")
+    x_goal = 3.0
+    max_speed = 10.0
 
-    x_min = np.array([[-3],[-3],[-3]])
-    x_max = np.array([[ 3],[ 3], [3]])
-    u_min = np.array([[-10.]])
-    u_max = np.array([[ 10.]])
+    x_min = np.array([[-100.0], [-10.0], [0.0]])
+    x_max = np.array([[100.0], [max_speed], [2.0]])
 
-    env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max, Q, R)
+    ev_min = np.array([[0.0]])
+    ev_max = np.array([[0.0]])
 
-    x_mid = (x_min + x_max) / 2.0
-    def safety_reward(x, Q, u, R):
-        return -np.matrix([[np.sum(np.abs(x - x_mid))]])
+    def rewardf(x, u, extra_vars):
+        if extra_vars[0,0] <= 0.5:
+            return x[0,0] - x_goal
+        else:
+            return -x[0,0]
+
+    def terminalf(x, extra_vars):
+        return x[0,0] <= 0.0 and extra_vars[0,0] >= 0.5
+
+    def ev_func(x, u, extra_vars):
+        if x[0,0] >= x_goal:
+            extra_vars[0,0] = 1.0
+        return extra_vars
+
+    u_min = np.array([[-2.0]])
+    u_max = np.array([[ 5.0]])
+
+    env = Environment(A, B, u_min, u_max, s_min, s_max, x_min, x_max,
+            None, None, continuous=True, rewardf=rewardf, terminalf=terminalf,
+            ev_min=ev_min, ev_max=ev_max, ev_func=ev_func)
 
     if retrain_nn:
         args = { 'actor_lr': 0.0001,
@@ -50,14 +65,14 @@ def tape(learning_method, number_of_rollouts, simulation_steps,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
                  'max_episode_len': episode_len,
-                 'max_episodes': learning_episodes,
+                 'max_episodes': learning_episodes,   # originally 1000
                  'minibatch_size': 64,
                  'random_seed': 6553,
                  'tau': 0.005,
                  'model_path': train_dir+"retrained_model.chkp",
                  'enable_test': nn_test, 
                  'test_episodes': test_episodes,
-                 'test_episodes_len': 500}
+                 'test_episodes_len': 5000}
     else:
         args = { 'actor_lr': 0.0001,
                  'critic_lr': 0.001,
@@ -66,38 +81,34 @@ def tape(learning_method, number_of_rollouts, simulation_steps,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
                  'max_episode_len': episode_len,
-                 'max_episodes': learning_episodes,
+                 'max_episodes': learning_eposides,
                  'minibatch_size': 64,
                  'random_seed': 6553,
                  'tau': 0.005,
                  'model_path': train_dir+"model.chkp",
                  'enable_test': nn_test, 
                  'test_episodes': test_episodes,
-                 'test_episodes_len': 500}
+                 'test_episodes_len': 5000}
 
-    Ks = [np.matrix([[-1, 0, 0]])]
-    invs = [(np.matrix([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0],
-      [0, 0, 1], [0, 0, -1]]), np.matrix([[1], [1], [1], [1], [1], [1]]))]
-    covers = [(invs[0][0], invs[0][1], np.matrix([[-1], [-1], [-1]]),
-      np.matrix([[1], [1], [1]]))]
+    Ks = [np.matrix([[0.0, 0.0, 0.0]])]
+    invs = [(np.matrix([[0.0, 1.0, 0.0]]), np.matrix([[max_speed]]))]
+    covers = [(invs[0][0], invs[0][1], np.matrix([[-1.0, -1.0, 1.0]]),
+            np.matrix([[x_goal, max_speed - max_speed / 2.0, 1.0]]))]
+
+    bound = 30
 
     initial_shield = Shield(env, K_list=Ks, inv_list=invs, cover_list=covers,
-        bound=episode_len)
+            bound=bound)
 
-    actor, shield = DDPG(env, args=args, rewardf=safety_reward, safe_training=safe_training,
-            shields=shields, initial_shield=initial_shield, penalty_ratio=penalty_ratio)
+    actor, shield = DDPG(env, args, safe_training=safe_training, shields=shields,
+            initial_shield=initial_shield, penalty_ratio=penalty_ratio, bound=bound)
 
-    #################### Shield #################
-    model_path = os.path.split(args['model_path'])[0]+'/'
-    linear_func_model_name = 'K.model'
-    model_path = model_path+linear_func_model_name+'.npy'
 
-    #shield = Shield(env, actor, model_path, force_learning=retrain_shield,
-    #        debug=False)
-    #shield.train_shield(learning_method, number_of_rollouts, simulation_steps,
-    #        eq_err=0, explore_mag=0.5, step_size=0.5)
     if shield_test:
-        shield.test_shield(test_episodes, 500, mode="single")
+        shield.test_shield(actor, test_episodes, 5000)
+
+    actor.sess.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Running Options')
@@ -129,9 +140,9 @@ if __name__ == "__main__":
     eps = parser_res.eps if parser_res.eps is not None else 1000
     ratio = parser_res.ratio if parser_res.ratio is not None else 0.1
 
-    tape("random_search", 100, 50, eps, [240,200], [280,240,200],
-            "ddpg_chkp/tape/240200280240200/", nn_test=nn_test,
-            retrain_shield=retrain_shield, shield_test=shield_test,
-            test_episodes=test_episodes, retrain_nn=retrain_nn,
-            safe_training=safe_training, shields=shields, episode_len=ep_len,
-            penalty_ratio=ratio)
+    road("random_search", 200, 100, eps, [240, 200], [280, 240, 200],
+            "ddpg_chkp/road/240200280240200/",
+            nn_test=nn_test, retrain_shield=retrain_shield,
+            shield_test=shield_test, test_episodes=test_episodes,
+            retrain_nn=retrain_nn, safe_training=safe_training,
+            shields=shields, episode_len=ep_len, penalty_ratio=ratio)

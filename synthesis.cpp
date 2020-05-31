@@ -7,9 +7,9 @@
 #include "abstract.hpp"
 
 #define MAX_SPLITS 1
-#define ABSTRACT_DOMAIN AbstractDomain::ZONOTOPE
+#define ABSTRACT_DOMAIN AbstractDomain::INTERVAL
 
-static PyObject* DomainError;
+//static PyObject* DomainError;
 
 struct Interval {
   Eigen::MatrixXd lower;
@@ -99,6 +99,9 @@ class Environment {
 
     virtual ~Environment() = default;
 };
+
+bool controller_is_safe(const Environment& env, const Controller& controller,
+    const std::vector<LinCons>& covers, int bound);
 
 /**
  * A linear environment.
@@ -207,38 +210,59 @@ class LinearEnv: public Environment {
         transition = A + B * k;
       }
 
-      // Find X such that for all x \in X, T * x \in Safe where T is the n-step
-      // transition matrix and Safe is the safe region. Then if the _unsafe_ region
-      // is defined by A x < b, we need to have
-      // A (T x) >= b ==> (A T) x >= b ==> (- A T) x <= - b.
+      Eigen::MatrixXd ws;
+      Eigen::VectorXd bs;
+      if (unsafe_space.size() > 0 && unsafe_space[0].weights.rows() <= 1) {
+        // Find X such that for all x \in X, T * x \in Safe where T is the n-step
+        // transition matrix and Safe is the safe region. Then if the _unsafe_ region
+        // is defined by A x < b, we need to have
+        // A (T x) >= b ==> (A T) x >= b ==> (- A T) x <= - b.
 
-      Eigen::MatrixXd n_step = Eigen::MatrixXd::Identity(A.rows(), A.rows());
-      std::vector<Eigen::VectorXd> constraints;
-      std::vector<double> coeffs;
-      for (int i = 0; i < bound; i++) {
-        for (const LinCons& lc : unsafe_space) {
-          Eigen::MatrixXd m = -lc.weights * n_step;
-          if (m.rows() > 1) {
-            return cover.space;
+        Eigen::MatrixXd n_step = Eigen::MatrixXd::Identity(A.rows(), A.rows());
+        std::vector<Eigen::VectorXd> constraints;
+        std::vector<double> coeffs;
+        for (int i = 0; i < bound; i++) {
+          for (const LinCons& lc : unsafe_space) {
+            Eigen::MatrixXd m = -lc.weights * n_step;
+            for (int i = 0; i < m.rows(); i++) {
+              constraints.push_back(m.row(i));
+              coeffs.push_back(-lc.biases(i));
+            }
           }
-          for (int i = 0; i < m.rows(); i++) {
-            constraints.push_back(m.row(i));
-            coeffs.push_back(-lc.biases(i));
+          n_step *= transition;
+        }
+
+        // FUTURE: Remove redundant constraints.
+        // This procedure produces a lot more constraints than necessary, but I
+        // think it should be okay since we only use these constraints a few times
+        // and the extra constraints don't compound.
+
+        ws = Eigen::MatrixXd(constraints.size(), constraints[0].size());
+        bs = Eigen::VectorXd(constraints.size());
+        for (int i = 0; i < ws.rows(); i++) {
+          ws.row(i) = constraints[i];
+          bs(i) = coeffs[i];
+        }
+      } else {
+        // Here we don't have an analytical way to expand the covers, but we
+        // can just try increasing the elements of b.
+        ws = cover.space.weights;
+        bs = cover.space.biases;
+        for (int i = 0; i < bs.size(); i++) {
+          double low = bs(i);
+          bs(i) += 1;
+          double high = bs(i);
+          for (int j = 0; j < 10; j++) {
+            Controller c { .k = k,
+                           .invariant = LinCons(ws, bs),
+                           .space = cover };
+            if (controller_is_safe(*this, c, other_covers, bound)) {
+              break;
+            }
+            bs(i) = (low + high) / 2.0;
+            high = bs(i);
           }
         }
-        n_step *= transition;
-      }
-
-      // FUTURE: Remove redundant constraints.
-      // This procedure produces a lot more constraints than necessary, but I
-      // think it should be okay since we only use these constraints a few times
-      // and the extra constraints don't compound.
-
-      Eigen::MatrixXd ws(constraints.size(), constraints[0].size());
-      Eigen::VectorXd bs(constraints.size());
-      for (int i = 0; i < ws.rows(); i++) {
-        ws.row(i) = constraints[i];
-        bs(i) = coeffs[i];
       }
 
       return LinCons(ws, bs);
@@ -307,6 +331,257 @@ class NonlinearEnv: public Environment {
       // much as possible.
       // TODO
       return cover.space;
+    }
+};
+
+class ApproxEnv: public Environment {
+  private:
+    // Get the right controller index using the breakpoints.
+    int get_index(const Eigen::VectorXd& state,
+        const Eigen::VectorXd& action) const {
+      Eigen::VectorXd sa(state.size() + action.size());
+      sa << state, action;
+      for (int i = 0; i < itv_lowers.size(); i++) {
+        bool inside = true;
+        for (int j = 0; j < itv_lowers[i].size(); j++) {
+          if (itv_lowers[i](j) > sa(j) || itv_uppers[i](j) < sa(j)) {
+            inside = false;
+            break;
+          }
+        }
+        if (inside) {
+          return i;
+        }
+      }
+    }
+
+    std::unique_ptr<AbstractVal> env_step(const AbstractVal& state,
+        const AbstractVal& action) const {
+      auto sa = state.append(action);
+      //std::cout << "State-Action pair:" << std::endl;
+      //sa->print(stdout);
+      auto output = state.bottom();
+      for (int i = 0; i < lower_As.size(); i++) {
+        Eigen::MatrixXd A = Eigen::MatrixXd::Zero(2 * sa->dims(), sa->dims());
+        Eigen::VectorXd b = Eigen::VectorXd::Zero(2 * sa->dims());
+        //std::cout << "Interval:" << std::endl;
+        for (int j = 0; j < itv_lowers[i].size(); j++) {
+          //std::cout << "[" << itv_lowers[i](j) << ", " << itv_uppers[i](j) << "] x ";
+          A(2*j, j) = 1.0;
+          A(2*j+1, j) = -1.0;
+          b(2*j) = itv_uppers[i](j);
+          b(2*j+1) = -itv_lowers[i](j);
+        }
+        auto piece = sa->meet_linear_constraint(A, b);
+        //std::cout << "Piece:" << std::endl;
+        //piece->print(stdout);
+        // x' = A x + B u = (A | B) /x\
+        //                          \u/
+        // x' = x + dt * (A x + B u)
+        //    = x + dt * (A | B) (x | u)^T
+        //    = x + (dt * (A | B)) (x | u)^t
+        //    = ((I | 0) + dt * (A | B)) (x | u)^t
+        // for I having the state dimension, and 0 being a zero matrix
+        // with the dimensions of B.
+        Eigen::MatrixXd lAB = lower_As[i];
+        lAB.conservativeResize(Eigen::NoChange,
+            lower_As[i].cols() + lower_Bs[i].cols());
+        lAB.block(0, lower_As[i].cols(), lower_Bs[i].rows(),
+            lower_Bs[i].cols()) = lower_Bs[i];
+        Eigen::MatrixXd uAB = upper_As[i];
+        uAB.conservativeResize(Eigen::NoChange,
+            upper_As[i].cols() + upper_Bs[i].cols());
+        uAB.block(0, upper_As[i].cols(), upper_Bs[i].rows(),
+            upper_Bs[i].cols()) = upper_Bs[i];
+        Eigen::VectorXd zero = Eigen::VectorXd::Zero(lAB.rows());
+        if (continuous) {
+          Eigen::MatrixXd I = Eigen::MatrixXd::Identity(
+              lower_As[i].rows(), lower_As[i].cols());
+          Eigen::MatrixXd Z = Eigen::MatrixXd::Zero(
+              lower_Bs[i].rows(), lower_Bs[i].cols());
+          I.conservativeResize(Eigen::NoChange, I.cols() + Z.cols());
+          I.block(0, lower_As[i].cols(), Z.rows(), Z.cols()) = Z;
+          lAB = I + dt * lAB;
+          uAB = I + dt * uAB;
+        }
+        //std::cout << "Transformation bounds:" << std::endl;
+        //std::cout << "Lower:" << std::endl;
+        //std::cout << lAB << std::endl;
+        //std::cout << "Upper:" << std::endl;
+        //std::cout << uAB << std::endl;
+        auto transformed = piece->interval_affine(lAB, uAB, zero, zero);
+        //std::cout << "Transformed:" << std::endl;
+        //transformed->print(stdout);
+        output = output->join(*transformed);
+        //std::cout << "Output so far: " << std::endl;
+        //output->print(stdout);
+      }
+      return output;
+    }
+
+  public:
+    std::vector<Eigen::MatrixXd> lower_As;
+    std::vector<Eigen::MatrixXd> lower_Bs;
+    std::vector<Eigen::MatrixXd> upper_As;
+    std::vector<Eigen::MatrixXd> upper_Bs;
+    std::vector<Eigen::VectorXd> itv_lowers;
+    std::vector<Eigen::VectorXd> itv_uppers;
+
+    ApproxEnv(const std::vector<double>& bs, const std::vector<int>& bss,
+        const std::vector<Eigen::MatrixXd>& lAs,
+        const std::vector<Eigen::MatrixXd>& lBs,
+        const std::vector<Eigen::MatrixXd>& uAs,
+        const std::vector<Eigen::MatrixXd>& uBs,
+        bool c, double d, const std::vector<LinCons>& unsafe):
+      Environment(c, d, unsafe),
+      lower_As(lAs), lower_Bs(lBs), upper_As(uAs), upper_Bs(uBs) {
+        int n = 1;
+        std::vector<int> sizes;
+        int last = 0;
+        std::vector<std::vector<double>> breakpoints(bss.size());
+        int t = 0;
+        for (int i : bss) {
+          n *= i - last + 1;
+          sizes.push_back(i - last + 1);
+          breakpoints[t] = std::vector<double>(i - last);
+          for (int j = last; j < i; j++) {
+            breakpoints[t][j] = bs[j];
+          }
+          last = i;
+          t++;
+        }
+        itv_lowers = std::vector<Eigen::VectorXd>(n);
+        itv_uppers = std::vector<Eigen::VectorXd>(n);
+        int inds[bss.size()];
+        for (int i = 0; i < bss.size(); i++) {
+          inds[i] = 0;
+        }
+        itv_lowers[0] = Eigen::VectorXd::Constant(bss.size(), -1000.0);
+        itv_uppers[0] = Eigen::VectorXd::Constant(bss.size(), 1000.0);
+        while (sizes.size() > 0 && inds[0] < sizes[0]) {
+          int index = 0;
+          for (int i = 0; i < bss.size(); i++) {
+            int size = 1;
+            for (int j = i + 1; j < sizes.size(); j++) {
+              size *= sizes[j];
+            }
+            index += inds[i] * size;
+          }
+          itv_lowers[index] = Eigen::VectorXd(bss.size());
+          itv_uppers[index] = Eigen::VectorXd(bss.size());
+          for (int i = 0; i < bss.size(); i++) {
+            if (inds[i] == 0) {
+              itv_lowers[index](i) = -1000.0;
+            } else {
+              itv_lowers[index](i) = breakpoints[i][inds[i]];
+            }
+            if (inds[i] + 1 == sizes[i]) {
+              itv_uppers[index](i) = 1000.0;
+            } else {
+              itv_uppers[index](i) = breakpoints[i][inds[i] + 1];
+            }
+          }
+
+          int axis = bss.size() - 1;
+          inds[axis]++;
+          while (axis > 0 && inds[axis] >= sizes[axis]) {
+            inds[axis] = 0;
+            axis--;
+            inds[axis]++;
+          }
+        }
+      }
+
+    /**
+     * Take a concrete step in this environment.
+     *
+     * \param state The current state of the system.
+     * \param controller The controller to use for this step.
+     * \return The new state of the system.
+     */
+    Eigen::VectorXd step(const Eigen::VectorXd& state,
+        const Eigen::MatrixXd& controller) const override {
+      // We can't do this exactly here, so what we'll do is take an upper
+      // bound step and a lower bound step, then return the average.
+      Eigen::VectorXd action = controller * state;
+      int i = get_index(state, action);
+      Eigen::VectorXd lower = lower_As[i] * state + lower_Bs[i] * action;
+      Eigen::VectorXd upper = upper_As[i] * state + upper_Bs[i] * action;
+      Eigen::VectorXd x = (lower + upper) / 2.0;
+      if (continuous) {
+        return state + dt * x;
+      } else {
+        return x;
+      }
+    }
+
+    /**
+     * Take a step using an abstract state and a concrete controller.
+     *
+     * \param state The (asbstract) state of the system.
+     * \param controller The (concrete) controller to use.
+     * \return The new (abstract) state of the system.
+     */
+    std::unique_ptr<AbstractVal> semi_abstract_step(
+        const AbstractVal& state,
+        const Eigen::MatrixXd& controller) const override {
+      auto action = state.scalar_affine(controller,
+          Eigen::VectorXd::Zero(controller.rows()));
+      return env_step(state, *action);
+    }
+
+    /**
+     * Take a step using an abstract state and an interval of controllers.
+     *
+     * \param state The current system state.
+     * \param controller The interval of possible controllers.
+     * \return The new system state.
+     */
+    std::unique_ptr<AbstractVal> abstract_step(
+        const AbstractVal& state,
+        const Interval& controller) const override {
+      Eigen::VectorXd bias = Eigen::VectorXd::Zero(controller.lower.rows());
+      auto action = state.interval_affine(controller.lower,
+          controller.upper, bias, bias);
+      return env_step(state, *action);
+    }
+
+    /**
+     * Find the largest invariant for some controller.
+     *
+     * In general a controller may be safe for a region larger than the cover
+     * for which it was computed. Here we want to find the largest region in which
+     * the given controller is safe.
+     *
+     * \param env The environment under control.
+     * \param cover The initial space covered by the controller.
+     * \param bound The bound on the time horizon.
+     * \param other_covers The regions covered by other controllers.
+     * \param k The controller.
+     * \return The region over which the controller is safe.
+     */
+    LinCons compute_invariant(const Space& cover, int bound,
+        const std::vector<LinCons>& other_covers,
+        const Eigen::MatrixXd& k) const override {
+      // TODO: There is probably a smarter way to do this.
+      Eigen::MatrixXd ws = cover.space.weights;
+      Eigen::VectorXd bs = cover.space.biases;
+      for (int i = 0; i < bs.size(); i++) {
+        double low = bs(i);
+        bs(i) += 0.4;
+        double high = bs(i);
+        for (int j = 0; j < 10; j++) {
+          Controller c { .k = k,
+                         .invariant = LinCons(ws, bs),
+                         .space = cover };
+          if (controller_is_safe(*this, c, other_covers, bound)) {
+            break;
+          }
+          bs(i) = (low + high) / 2.0;
+          high = bs(i);
+        }
+      }
+      return LinCons(ws, bs);
     }
 };
 
@@ -395,7 +670,7 @@ bool controller_is_safe(const Environment& env, const Controller& controller,
       controller.invariant);
   if (bound > 0) {
     for (int i = 0; i < bound; i++) {
-      state = env.semi_abstract_step(*state, controller.k);
+      state = state->join(*env.semi_abstract_step(*state, controller.k));
     }
   } else {
     while (true) {
@@ -620,19 +895,43 @@ static std::vector<Eigen::MatrixXd> pylist_to_matrix_list(PyObject* list) {
 
 static std::vector<Space> pylist_to_space(PyObject* list) {
   Py_ssize_t len = PyList_Size(list);
+  if (PyErr_Occurred()) {
+    PyErr_PrintEx(0);
+    throw std::runtime_error("pylist_to_space after PyList_Size");
+  }
   std::vector<Space> ret = {};
   for (Py_ssize_t i = 0; i < len; i++) {
     PyObject* lc = PyList_GetItem(list, i);
     Eigen::MatrixXd a = pylist_to_matrix(PyTuple_GetItem(lc, 0));
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("pylist_to_space after a: " + std::to_string(i));
+    }
     Eigen::VectorXd b = pylist_to_vector(PyTuple_GetItem(lc, 1));
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("pylist_to_space after b: " + std::to_string(i));
+    }
     Eigen::VectorXd l = pylist_to_vector(PyTuple_GetItem(lc, 2));
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("pylist_to_space after l: " + std::to_string(i));
+    }
     Eigen::VectorXd u = pylist_to_vector(PyTuple_GetItem(lc, 3));
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("pylist_to_space after u: " + std::to_string(i));
+    }
     Space tmp = {
       .space = LinCons(a, b),
       .bb_lower = l,
       .bb_upper = u
     };
     ret.push_back(tmp);
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("pylist_to_space after iteration " + std::to_string(i));
+    }
   }
   return ret;
 }
@@ -1130,29 +1429,30 @@ std::vector<Controller> synthesize_shield(const Environment& env,
 
 LinCons get_cover(const Environment& env, const Eigen::MatrixXd k,
     const Space s, int bound) {
-  auto state = std::make_unique<AbstractVal>(ABSTRACT_DOMAIN,
-      s.space);
-  if (bound > 0) {
-    for (int i = 0; i < bound; i++) {
-      auto next = env.semi_abstract_step(*state, k);
-      //std::cout << "Iteration: " << i << std::endl;
-      //next->print(stdout);
-      state = state->join(*next);
-      //std::cout << "Joined:" << std::endl;
-      //state->print(stdout);
-    }
-  } else {
-    while (true) {
-      auto next = env.semi_abstract_step(*state, k);
-      auto old_state = state->clone();
-      state = state->widen(*state->join(*next));
-      if (*old_state == *state) {
-        break;
-      }
-    }
-  }
-  //state->print(stdout);
-  return state->get_lincons();
+  //auto state = std::make_unique<AbstractVal>(ABSTRACT_DOMAIN,
+  //    s.space);
+  //if (bound > 0) {
+  //  for (int i = 0; i < bound; i++) {
+  //    auto next = env.semi_abstract_step(*state, k);
+  //    //std::cout << "Iteration: " << i << std::endl;
+  //    //next->print(stdout);
+  //    state = state->join(*next);
+  //    //std::cout << "Joined:" << std::endl;
+  //    //state->print(stdout);
+  //  }
+  //} else {
+  //  while (true) {
+  //    auto next = env.semi_abstract_step(*state, k);
+  //    auto old_state = state->clone();
+  //    state = state->widen(*state->join(*next));
+  //    if (*old_state == *state) {
+  //      break;
+  //    }
+  //  }
+  //}
+  ////state->print(stdout);
+  //return state->get_lincons();
+  return env.compute_invariant(s, bound, {}, k);
 }
 
 static PyObject* py_synthesize_shield(PyObject* self, PyObject* args) {
@@ -1185,6 +1485,49 @@ static PyObject* py_synthesize_shield(PyObject* self, PyObject* args) {
     std::vector<LinCons> uns = pylist_to_lincons(unsafe);
     env = std::make_unique<NonlinearEnv>(update->concrete, update->update,
         continuous, dt, uns);
+  } else if (PyTuple_Size(env_tuple) == 9) {
+    PyObject *breaks, *break_breaks, *lA, *lB, *uA, *uB, *cont_obj, *unsafe;
+    double dt;
+    if (!PyArg_ParseTuple(env_tuple, "OOOOOOOdO", &breaks, &break_breaks, &lA,
+          &lB, &uA, &uB, &cont_obj, &dt, &unsafe)) {
+      return NULL;
+    }
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("after second ParseTuple anything");
+    }
+    if (!PyBool_Check(cont_obj)) {
+      PyErr_SetString(PyExc_RuntimeError, "Malformed environment");
+      return NULL;
+    }
+    bool continuous = (cont_obj == Py_True);
+    std::vector<LinCons> uns = pylist_to_lincons(unsafe);
+    std::vector<double> bs;
+    for (Py_ssize_t i = 0; i < PyList_Size(breaks); i++) {
+      bs.push_back(PyFloat_AsDouble(PyList_GetItem(breaks, i)));
+    }
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("after parsing breaks");
+    }
+    std::vector<int> bss;
+    for (Py_ssize_t i = 0; i < PyList_Size(break_breaks); i++) {
+      bss.push_back(PyLong_AsLong(PyList_GetItem(break_breaks, i)));
+    }
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("after parsing break_breaks");
+    }
+    env = std::make_unique<ApproxEnv>(
+        bs,
+        bss,
+        pylist_to_matrix_list(lA),
+        pylist_to_matrix_list(lB),
+        pylist_to_matrix_list(uA),
+        pylist_to_matrix_list(uB),
+        continuous,
+        dt,
+        uns);
   } else {
     PyObject* a_list;
     PyObject* b_list;
@@ -1223,6 +1566,10 @@ static PyObject* py_synthesize_shield(PyObject* self, PyObject* args) {
 }
 
 static PyObject* py_get_covers(PyObject* self, PyObject* args) {
+  if (PyErr_Occurred()) {
+    PyErr_PrintEx(0);
+    throw std::runtime_error("get_covers before anything");
+  }
   PyObject* shield;
   PyObject* cover_list;
   PyObject* env_tuple;
@@ -1230,6 +1577,10 @@ static PyObject* py_get_covers(PyObject* self, PyObject* args) {
   if (!PyArg_ParseTuple(args, "OOOi", &env_tuple, &shield,
         &cover_list, &bound)) {
     return NULL;
+  }
+  if (PyErr_Occurred()) {
+    PyErr_PrintEx(0);
+    throw std::runtime_error("after first ParseTuple anything");
   }
   std::unique_ptr<Environment> env;
   if (PyTuple_Size(env_tuple) == 4) {
@@ -1241,6 +1592,10 @@ static PyObject* py_get_covers(PyObject* self, PyObject* args) {
           &dt, &unsafe)) {
       return NULL;
     }
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("after second ParseTuple anything");
+    }
     if (!PyBool_Check(cont_obj)) {
       PyErr_SetString(PyExc_RuntimeError, "Malformed environment");
       return NULL;
@@ -1251,6 +1606,49 @@ static PyObject* py_get_covers(PyObject* self, PyObject* args) {
     std::vector<LinCons> uns = pylist_to_lincons(unsafe);
     env = std::make_unique<NonlinearEnv>(update->concrete, update->update,
         continuous, dt, uns);
+  } else if (PyTuple_Size(env_tuple) == 9) {
+    PyObject *breaks, *break_breaks, *lA, *lB, *uA, *uB, *cont_obj, *unsafe;
+    double dt;
+    if (!PyArg_ParseTuple(env_tuple, "OOOOOOOdO", &breaks, &break_breaks, &lA,
+          &lB, &uA, &uB, &cont_obj, &dt, &unsafe)) {
+      return NULL;
+    }
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("after second ParseTuple anything");
+    }
+    if (!PyBool_Check(cont_obj)) {
+      PyErr_SetString(PyExc_RuntimeError, "Malformed environment");
+      return NULL;
+    }
+    bool continuous = (cont_obj == Py_True);
+    std::vector<LinCons> uns = pylist_to_lincons(unsafe);
+    std::vector<double> bs;
+    for (Py_ssize_t i = 0; i < PyList_Size(breaks); i++) {
+      bs.push_back(PyFloat_AsDouble(PyList_GetItem(breaks, i)));
+    }
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("after parsing breaks");
+    }
+    std::vector<int> bss;
+    for (Py_ssize_t i = 0; i < PyList_Size(break_breaks); i++) {
+      bss.push_back(PyLong_AsLong(PyList_GetItem(break_breaks, i)));
+    }
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("after parsing break_breaks");
+    }
+    env = std::make_unique<ApproxEnv>(
+        bs,
+        bss,
+        pylist_to_matrix_list(lA),
+        pylist_to_matrix_list(lB),
+        pylist_to_matrix_list(uA),
+        pylist_to_matrix_list(uB),
+        continuous,
+        dt,
+        uns);
   } else {
     PyObject* a_list;
     PyObject* b_list;
@@ -1260,6 +1658,10 @@ static PyObject* py_get_covers(PyObject* self, PyObject* args) {
     if (!PyArg_ParseTuple(env_tuple, "OOOdO", &a_list, &b_list, &cont_obj,
           &dt, &unsafe)) {
       return NULL;
+    }
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("after second ParseTuple anything");
     }
 
     if (!PyBool_Check(cont_obj)) {
@@ -1272,14 +1674,38 @@ static PyObject* py_get_covers(PyObject* self, PyObject* args) {
     std::vector<LinCons> uns = pylist_to_lincons(unsafe);
     env = std::make_unique<LinearEnv>(a, b, continuous, dt, uns);
   }
+  if (PyErr_Occurred()) {
+    PyErr_PrintEx(0);
+    throw std::runtime_error("get_covers after parsing");
+  }
   std::vector<Eigen::MatrixXd> inits = pylist_to_matrix_list(shield);
+  if (PyErr_Occurred()) {
+    PyErr_PrintEx(0);
+    throw std::runtime_error("get_covers after pylist_to_matrix");
+  }
   std::vector<Space> covers = pylist_to_space(cover_list);
+  if (PyErr_Occurred()) {
+    PyErr_PrintEx(0);
+    throw std::runtime_error("get_covers after pylist_to_space");
+  }
   PyObject* ret = PyList_New(inits.size());
+  if (PyErr_Occurred()) {
+    PyErr_PrintEx(0);
+    throw std::runtime_error("get_covers after PyList_New");
+  }
   for (int i = 0; i < inits.size(); i++) {
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("get_covers before iteration " + std::to_string(i));
+    }
     LinCons lc = get_cover(*env, inits[i], covers[i], bound);
     PyObject* t = Py_BuildValue("NN", matrix_to_pylist(lc.weights),
         vector_to_pylist(lc.biases));
     PyList_SetItem(ret, i, t);
+    if (PyErr_Occurred()) {
+      PyErr_PrintEx(0);
+      throw std::runtime_error("get_covers after iteration " + std::to_string(i));
+    }
   }
   return ret;
 }
@@ -1362,6 +1788,7 @@ static PyObject* py_get_capsule(PyObject* self, PyObject* args) {
     strcat(exc_str, "Unknown environment: ");
     strcat(exc_str, env_name);
     PyErr_SetString(PyExc_RuntimeError, exc_str);
+    return NULL;
   }
   PyObject* ret = PyCapsule_New(cap, "synthesis.env_capsule",
       &destroy_capsule);
@@ -1374,21 +1801,34 @@ static PyMethodDef SynthesisMethods[] = {
   {"get_covers", py_get_covers, METH_VARARGS,
    "Get the regions in which a shield should be applied."},
   {"get_env_capsule", py_get_capsule, METH_VARARGS,
-   "Get the abstract transformer for an environment by name."}
+   "Get the abstract transformer for an environment by name."},
+  {NULL, NULL, 0, NULL}
 };
 
-PyMODINIT_FUNC initsynthesis(void) {
-  PyObject* m;
-  m = Py_InitModule("synthesis", SynthesisMethods);
-  if (m == NULL) {
-    return;
-  }
-  char err_name[100];
-  strcpy(err_name, "synthesis.domain_error");
-  DomainError = PyErr_NewException(err_name, NULL, NULL);
-  Py_INCREF(DomainError);
-  PyModule_AddObject(m, "domain_error", DomainError);
+static struct PyModuleDef synthesismodule = {
+  PyModuleDef_HEAD_INIT,
+  "synthesis",
+  NULL,
+  -1,
+  SynthesisMethods
+};
+
+PyMODINIT_FUNC PyInit_synthesis(void) {
+  return PyModule_Create(&synthesismodule);
 }
+
+//PyMODINIT_FUNC initsynthesis(void) {
+//  PyObject* m;
+//  m = Py_InitModule("synthesis", SynthesisMethods);
+//  if (m == NULL) {
+//    return;
+//  }
+//  char err_name[100];
+//  strcpy(err_name, "synthesis.domain_error");
+//  DomainError = PyErr_NewException(err_name, NULL, NULL);
+//  Py_INCREF(DomainError);
+//  PyModule_AddObject(m, "domain_error", DomainError);
+//}
 
 int main() {
   //Eigen::MatrixXd A(2, 2);

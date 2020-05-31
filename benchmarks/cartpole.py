@@ -106,8 +106,10 @@ def cartpole(learning_method, number_of_rollouts, simulation_steps,
     bias2[8,0] = 0
     invs = [(mat1, bias1), (mat2, bias2)]
     covers = [(mat1, bias1, lower, upper), (mat2, bias2, lower, upper)]
+
+    bound = 20
     initial_shield = Shield(env, K_list=Ks, inv_list=invs, cover_list=covers,
-            bound=episode_len)
+            bound=bound)
 
     actor, shield = DDPG(env, args=args, rewardf=safety_reward,
             safe_training=safe_training, shields=shields,
