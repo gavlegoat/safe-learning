@@ -14,3 +14,5 @@ venv*
 *.log
 *.chkp.*
 ddpg_chkp/
+*.log.*
+*.png
