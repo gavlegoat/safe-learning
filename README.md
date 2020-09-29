@@ -2,11 +2,12 @@
 
 Revel is a tool for verified training in reinforcement learning. Revel offers
 guaranteed safety at training time using an iteratively updated shield to bound
-the behavior of the learner.
+the behavior of the learner. See our
+[NeurIPS paper](https://arxiv.org/abs/2009.12612) for more details.
 
 ## Requirements
 Note: all of this is written using Python 3, and we will assume in these
-instructinos that `pip` and `python` refer to `pip3` and `python3`
+instructions that `pip` and `python` refer to `pip3` and `python3`
 respectively.
 
 Revel relies on several python packages which can be installed from the
