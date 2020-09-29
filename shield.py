@@ -172,9 +172,6 @@ class Shield(object):
             controllers.append(k.tolist())
 
         def measure(K, space, dataset):
-            # TODO: Use dataset to implement DAgger. The dataset
-            # object should be created if it is None and updated with
-            # new trajectories otherwise.
             A = np.matrix(space[0])
             b = np.matrix([[x] for x in space[1]])
             lower = np.matrix([[x] for x in space[2]])
