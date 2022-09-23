@@ -14,7 +14,7 @@ matplotlib==3.2.1
 numpy==1.18.5
 Pillow==7.1.2
 pkg-resources==0.0.0
-protobuf==3.12.2
+protobuf==3.18.3
 pyparsing==2.4.7
 python-dateutil==2.8.1
 scipy==1.4.1
