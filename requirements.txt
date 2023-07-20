@@ -13,12 +13,10 @@ Markdown==3.2.2
 matplotlib==3.2.1
 numpy==1.18.5
 Pillow==7.1.2
-pkg-resources==0.0.0
 protobuf==3.12.2
 pyparsing==2.4.7
 python-dateutil==2.8.1
 scipy==1.4.1
-Shield-Synthesis==0.1
 six==1.15.0
 tensorboard==1.14.0
 tensorflow==1.14.0

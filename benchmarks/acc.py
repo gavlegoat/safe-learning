@@ -39,7 +39,8 @@ def acc(learning_method, number_of_rollouts, simulation_steps,
         return x[0,0]
 
     def testf(x, u):
-        return x[0,0] >= 0
+        # return x[0,0] >= 0
+        return -x[0, 0]
 
     def terminalf(x):
         # We don't terminate episodes early unless we hit a bad state
@@ -81,7 +82,7 @@ def acc(learning_method, number_of_rollouts, simulation_steps,
         args = { 'actor_lr': 0.0001,    # [240, 200]
                  'critic_lr': 0.001,    # [280, 240, 200]
                  'actor_structure': actor_structure,
-                 'critic_structure': critic_structure, 
+                 'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
                  'max_episode_len': episode_len,   # 100
@@ -90,14 +91,14 @@ def acc(learning_method, number_of_rollouts, simulation_steps,
                  'random_seed': 6553,
                  'tau': 0.005,
                  'model_path': train_dir+"retrained_model.chkp",
-                 'enable_test': nn_test, 
+                 'enable_test': nn_test,
                  'test_episodes': test_episodes,
                  'test_episodes_len': 5000}
     else:
         args = { 'actor_lr': 0.0001,
                  'critic_lr': 0.001,
                  'actor_structure': actor_structure,
-                 'critic_structure': critic_structure, 
+                 'critic_structure': critic_structure,
                  'buffer_size': 1000000,
                  'gamma': 0.99,
                  'max_episode_len': episode_len,
@@ -106,7 +107,7 @@ def acc(learning_method, number_of_rollouts, simulation_steps,
                  'random_seed': 6553,
                  'tau': 0.005,
                  'model_path': train_dir+"model.chkp",
-                 'enable_test': nn_test, 
+                 'enable_test': nn_test,
                  'test_episodes': test_episodes,
                  'test_episodes_len': 5000}
 

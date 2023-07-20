@@ -9,6 +9,11 @@ import re
 
 import synthesis
 
+
+def xrange(*args, **kwargs):
+    return range(*args, **kwargs)
+
+
 class Shield(object):
     """A safe controller for an environment.
 

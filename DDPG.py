@@ -12,6 +12,10 @@ import tflearn
 import numpy as np
 
 
+def xrange(*args, **kwargs):
+    return range(*args, **kwargs)
+
+
 class ReplayBuffer(object):
 
     def __init__(self, buffer_size, random_seed=123):
@@ -112,7 +116,7 @@ class ActorNetwork(object):
         net = inputs
         for layer_nueral_number in self.actor_structure:
             net = tflearn.fully_connected(net, layer_nueral_number)
-            net = tflearn.layers.normalization.batch_normalization(net)
+            #net = tflearn.layers.normalization.batch_normalization(net)
             net = tflearn.activations.relu(net)
 
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
@@ -538,6 +542,12 @@ def train(sess, env, args, actor, critic, actor_noise, restorer,
         print(x)
     print("Runs ending in an unsafe state:", unsafe_count, "out of", total_runs)
 
+    import sys
+    np.set_printoptions(threshold=sys.maxsize)
+    for p in actor.network_params:
+        print(p)
+        print(p.eval(sess))
+
     return shield
 
 @timeit
@@ -671,7 +681,7 @@ def random_search_for_init_buffer(env, args, target, trance_number, rewardf,
                         env.xk = xk_list.pop()
                         action_list.pop()
                         r = r_list.pop()
-                    else: 
+                    else:
                         env.reset()
                         xk, r, terminal = env.observation()
                         xk_list = [env.xk]
